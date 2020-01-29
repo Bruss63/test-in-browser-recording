@@ -63,6 +63,10 @@ function SubmitButton(props) {
 class App extends Component {
 	constructor() {
 		super();
+		this.stream = null;
+		this.constraints = {audio: true, video: false};
+		this.mediaRecorder = null;
+		this.chunks = [];
 		this.state = {
 			timerDisplaying: false,
 			timerActive: false,
@@ -70,7 +74,6 @@ class App extends Component {
 			sec: 0,
 			ms: 0,
 			start: 0,
-			audio: null
 		};
 	}
 
@@ -87,34 +90,13 @@ class App extends Component {
 		this.setState({ recordedChunks: [] });
 	};
 
-	recorderToggle = () => {
-		if (this.mediaRecorder) {
-			if (this.mediaRecorder.state == "paused") {
-				this.mediaRecorder.pause();
-			} else if (this.mediaRecorder.state == "recording") {
-				this.mediaRecorder.resume();
-			}
-		} else if (this.audio) {
-			const options = { mimeType: "audio/webm" };
-			this.mediaRecorder = new window.MediaRecorder(this.audio, options);
-			this.mediaRecorder.addEventListener("dataavailible", function(e) {
-				if (e.data.size > 0) {
-					console.log("Recorded Something!");
-					this.state.recordedChunks.push(e.data);
-				}
-			});	
-			this.mediaRecorder.start();
-		}
+	startRecorder = () => {
+		this.stream = navigator.mediaDevices.getUserMedia(this.constraints);
+		if (this.stream) {
+			console.log("Aquired Stream ");
+		}	
+		this.mediaRecorder = new window.MediaRecorder(this.stream)
 	};
-
-	async getMic() {
-		this.audio = await navigator.mediaDevices.getUserMedia({
-			audio: true,
-			video: false
-		});
-		this.setState({ audio: this.audio });
-		
-	}
 
 	stopMic() {
 		if (this.state.audio) {
@@ -181,9 +163,7 @@ class App extends Component {
 	}
 
 	handleRecord = () => {
-		this.toggleTimer();
-		this.toggleMic();
-		this.recorderToggle();
+		this.startRecorder();
 	};
 
 	handleSubmit = () => {
@@ -196,6 +176,7 @@ class App extends Component {
 		this.stopMic();
 		this.recorderReset();
 	};
+
 	render() {
 		return (
 			<div className="App">
@@ -220,7 +201,7 @@ class App extends Component {
 					onClick={this.handleSubmit}
 				/>
 
-				{this.state.audio ? <AudioAnalyser audio={this.state.audio} /> : ""}
+				{this.stream ? <AudioAnalyser audio={this.stream} /> : ""}
 			</div>
 		);
 	}
