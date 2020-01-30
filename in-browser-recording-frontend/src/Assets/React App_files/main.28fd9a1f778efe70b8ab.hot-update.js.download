@@ -1,0 +1,376 @@
+webpackHotUpdate("main",{
+
+/***/ "./src/App.js":
+/*!********************!*\
+  !*** ./src/App.js ***!
+  \********************/
+/*! exports provided: default */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "./node_modules/react/index.js");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _Modules_AudioAnalyser_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./Modules/AudioAnalyser.js */ "./src/Modules/AudioAnalyser.js");
+/* harmony import */ var _Assets_microphone_logo_svg__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./Assets/microphone-logo.svg */ "./src/Assets/microphone-logo.svg");
+/* harmony import */ var _Assets_microphone_logo_svg__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_Assets_microphone_logo_svg__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _Assets_reset_svg__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./Assets/reset.svg */ "./src/Assets/reset.svg");
+/* harmony import */ var _Assets_reset_svg__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_Assets_reset_svg__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _Assets_play_svg__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./Assets/play.svg */ "./src/Assets/play.svg");
+/* harmony import */ var _Assets_play_svg__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_Assets_play_svg__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var _Assets_pause_svg__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./Assets/pause.svg */ "./src/Assets/pause.svg");
+/* harmony import */ var _Assets_pause_svg__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_Assets_pause_svg__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var _App_css__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./App.css */ "./src/App.css");
+/* harmony import */ var _App_css__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(_App_css__WEBPACK_IMPORTED_MODULE_6__);
+var _jsxFileName = "D:\\Brendan\\Documents\\Atom\\Repositories\\in-brower-recording\\in-browser-recording-frontend\\src\\App.js";
+
+
+
+
+
+
+
+
+function TimerDisplay(props) {
+  let ms = props.ms.toString();
+  let sec = props.sec.toString();
+  let min = props.min.toString();
+
+  while (ms.length !== 4) {
+    ms = 0 + ms;
+  }
+
+  while (sec.length !== 2) {
+    sec = 0 + sec;
+  }
+
+  while (min.length !== 2) {
+    min = 0 + min;
+  }
+
+  if (props.isDisplayed) {
+    return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("div", {
+      __source: {
+        fileName: _jsxFileName,
+        lineNumber: 28
+      },
+      __self: this
+    }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("h1", {
+      className: "clock-face",
+      __source: {
+        fileName: _jsxFileName,
+        lineNumber: 29
+      },
+      __self: this
+    }, min, ":", sec, ":", ms));
+  } else {
+    return null;
+  }
+}
+
+function SubmitButton(props) {
+  let sec = props.sec;
+  let min = props.min;
+
+  if (sec >= 15 || min >= 1) {
+    return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("button", {
+      className: "submit-button",
+      __source: {
+        fileName: _jsxFileName,
+        lineNumber: 48
+      },
+      __self: this
+    }, "Submit");
+  } else {
+    return null;
+  }
+}
+
+class App extends react__WEBPACK_IMPORTED_MODULE_0__["Component"] {
+  constructor() {
+    super();
+
+    this.MainButtonCluster = () => {
+      let _this$state = this.state,
+          isPaused = _this$state.isPaused,
+          isRecordingPane = _this$state.isRecordingPane;
+
+      if (!isRecordingPane) {
+        return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("button", {
+          className: "record-button",
+          onClick: this.handleBeginRecord,
+          __source: {
+            fileName: _jsxFileName,
+            lineNumber: 82
+          },
+          __self: this
+        }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("img", {
+          className: "microphone",
+          src: _Assets_microphone_logo_svg__WEBPACK_IMPORTED_MODULE_2___default.a,
+          alt: "err",
+          __source: {
+            fileName: _jsxFileName,
+            lineNumber: 85
+          },
+          __self: this
+        }));
+      } else if (isRecordingPane) {
+        return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("div", {
+          __source: {
+            fileName: _jsxFileName,
+            lineNumber: 93
+          },
+          __self: this
+        }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("button", {
+          className: "pause-play-button",
+          onClick: this.handlePausePlay,
+          __source: {
+            fileName: _jsxFileName,
+            lineNumber: 94
+          },
+          __self: this
+        }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("img", {
+          className: isPaused ? "play" : "pause",
+          src: isPaused ? _Assets_play_svg__WEBPACK_IMPORTED_MODULE_4___default.a : _Assets_pause_svg__WEBPACK_IMPORTED_MODULE_5___default.a,
+          __source: {
+            fileName: _jsxFileName,
+            lineNumber: 97
+          },
+          __self: this
+        })), react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("button", {
+          className: "reset-button",
+          onClick: this.handleReset,
+          __source: {
+            fileName: _jsxFileName,
+            lineNumber: 103
+          },
+          __self: this
+        }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("img", {
+          className: "reset",
+          src: _Assets_reset_svg__WEBPACK_IMPORTED_MODULE_3___default.a,
+          alt: "err",
+          __source: {
+            fileName: _jsxFileName,
+            lineNumber: 104
+          },
+          __self: this
+        })));
+      }
+    };
+
+    this.handleBeginRecord = () => {
+      this.startRecorder();
+      this.setState({
+        isRecordingPane: true
+      });
+    };
+
+    this.startRecorder = async () => {
+      this.stream = await this.getMic();
+
+      if (this.stream) {
+        console.log("Aquired Stream ");
+      }
+
+      this.mediaRecorder = new window.MediaRecorder(this.stream);
+      this.mediaRecorder.start();
+    };
+
+    this.handlePausePlay = () => {
+      let isPaused = this.state.isPaused;
+
+      if (isPaused) {
+        this.setState({
+          isPaused: false
+        });
+      } else if (!isPaused) {
+        this.setState({
+          isPaused: true
+        });
+      }
+
+      this.toggleMic();
+    };
+
+    this.getMic = async () => {
+      return await navigator.mediaDevices.getUserMedia(this.constraints);
+    };
+
+    this.recorderStop = () => {
+      this.mediaRecorder.stop();
+      this.downloadLink.href = URL.createObjectURL(new Blob(this.state.recordedChunks));
+      this.downloadLink.download = "test.wav";
+    };
+
+    this.recorderReset = () => {
+      this.mediaRecorder.stop();
+      this.setState({
+        recordedChunks: []
+      });
+    };
+
+    this.startTimer = () => {
+      this.setState({
+        timerActive: true,
+        timerDisplaying: true,
+        time: this.state.time,
+        start: Date.now() - this.state.ms
+      });
+      this.timer = setInterval(this.updateTimer, 1);
+    };
+
+    this.updateTimer = () => {
+      let ms = Date.now() - this.state.start;
+      let sec = this.state.sec;
+      let min = this.state.min;
+
+      if (ms >= 1000) {
+        this.setState({
+          start: Date.now()
+        });
+        sec += 1;
+      }
+
+      if (sec >= 60) {
+        sec = 0;
+        min += 1;
+      }
+
+      this.setState({
+        ms: Date.now() - this.state.start,
+        sec: sec,
+        min: min
+      });
+    };
+
+    this.stopTimer = () => {
+      this.setState({
+        timerActive: false
+      });
+      clearInterval(this.timer);
+    };
+
+    this.resetTimer = () => {
+      this.setState({
+        timerActive: false,
+        min: 0,
+        sec: 0,
+        ms: 0,
+        timerDisplaying: false
+      });
+      clearInterval(this.timer);
+    };
+
+    this.toggleTimer = () => {
+      if (this.state.timerActive) {
+        this.stopTimer();
+      } else if (!this.state.timerActive) {
+        this.startTimer();
+      }
+    };
+
+    this.handleSubmit = () => {
+      this.recorderStop();
+      this.stopMic();
+    };
+
+    this.handleReset = () => {
+      this.resetTimer();
+      this.stopMic();
+      this.recorderReset();
+    };
+
+    this.stream = null;
+    this.constraints = {
+      audio: true,
+      video: false
+    };
+    this.mediaRecorder = null;
+    this.chunks = [];
+    this.state = {
+      isPaused: true,
+      isRecordingPane: false,
+      timerDisplaying: false,
+      timerActive: false,
+      min: 0,
+      sec: 0,
+      ms: 0,
+      start: 0
+    };
+  }
+
+  async toggleMic() {
+    if (this.isPaused) {
+      this.stopMic();
+    } else {
+      this.stream = await this.getMic();
+    }
+  }
+
+  stopMic() {
+    if (this.state.audio) {
+      this.state.audio.getTracks().forEach(track => track.stop());
+      this.setState({
+        audio: null
+      });
+    }
+  }
+
+  render() {
+    return react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("div", {
+      className: "App",
+      __source: {
+        fileName: _jsxFileName,
+        lineNumber: 233
+      },
+      __self: this
+    }, react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement("h1", {
+      __source: {
+        fileName: _jsxFileName,
+        lineNumber: 234
+      },
+      __self: this
+    }, "Record VoicePrint"), react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(this.MainButtonCluster, {
+      isRecordingPane: this.state.isRecordingPane,
+      __source: {
+        fileName: _jsxFileName,
+        lineNumber: 236
+      },
+      __self: this
+    }), react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(TimerDisplay, {
+      isDisplayed: this.state.timerDisplaying,
+      ms: this.state.ms,
+      sec: this.state.sec,
+      min: this.state.min,
+      __source: {
+        fileName: _jsxFileName,
+        lineNumber: 240
+      },
+      __self: this
+    }), react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(SubmitButton, {
+      sec: this.state.sec,
+      min: this.state.min,
+      onClick: this.handleSubmit,
+      __source: {
+        fileName: _jsxFileName,
+        lineNumber: 247
+      },
+      __self: this
+    }), this.stream ? react__WEBPACK_IMPORTED_MODULE_0___default.a.createElement(_Modules_AudioAnalyser_js__WEBPACK_IMPORTED_MODULE_1__["default"], {
+      audio: this.stream,
+      __source: {
+        fileName: _jsxFileName,
+        lineNumber: 253
+      },
+      __self: this
+    }) : "");
+  }
+
+}
+
+/* harmony default export */ __webpack_exports__["default"] = (App);
+
+/***/ })
+
+})
+//# sourceMappingURL=main.28fd9a1f778efe70b8ab.hot-update.js.map

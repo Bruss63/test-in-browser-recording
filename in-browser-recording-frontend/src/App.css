@@ -25,6 +25,7 @@
 }
 
 .reset-button {
+  display: block;
   border-style: none;
   border-radius: 50px;
   background-color: rgb(219, 53, 47);
@@ -34,6 +35,28 @@
   transition-duration: 0.5s;
 }
 
+.play {
+  display: block;
+  width: 30px;
+  margin-left: 20px;
+  margin-right: auto;
+}
+
+.pause {
+  display: block;
+  width: 30px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.pause-play-button {
+  border-style: none;
+  border-radius: 50px;
+  background-color: rgb(47, 122, 219);
+  width: 75px;
+  height: 75px;
+  transition-duration: 0.5s;
+}
 .reset-button:hover {
   background-color: rgb(161, 20, 15);
 }
@@ -84,3 +107,9 @@
   from {opacity: 0;}
   to {opacity: 1;}
 }
+
+@keyframes fadeout {
+  from {opacity: 1;}
+  to {opacity: 0;}
+}
+
