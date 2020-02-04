@@ -11,11 +11,15 @@ class App extends Component {
 	constructor() {
 		super();
 		this.stream = null;
+		this.saveDataOptions = {
+			clientDownload: false,
+			S3Upload: true
+		}
 		this.constraints = { audio: true, video: false };
 		this.mediaRecorder = null;
 		this.mediaRecorderType = null;
 		this.recordedFile = null;
-		this.minimumRecordTime = 15;
+		this.minimumRecordTime = 1;
 		this.state = {
 			isUploading: false,
 			isSubmitted: false,
@@ -30,6 +34,8 @@ class App extends Component {
 			start: 0
 		};
 	}
+
+
 	//Custom Buttons
 	TimerDisplay = () => {
 		let { ms, sec, min, timerDisplaying } = this.state;
@@ -121,7 +127,7 @@ class App extends Component {
 	};
 	//Handlers
 	handleSubmit = () => {
-		console.log("submit attempted");
+		console.log("Submit Attempted");
 		this.stopMic();
 		this.stopTimer();
 		this.saveData();
@@ -162,15 +168,14 @@ class App extends Component {
 		}
 		this.mediaRecorder = new window.MediaRecorder(this.stream);
 		this.mediaRecorderType = this.mediaRecorder.mimeType;
-		console.log(this.mediaRecorderType);
 		this.recordedChunks = [];
 		this.mediaRecorder.start();
 		this.mediaRecorder.ondataavailable = event => {
 			if (event.data && event.data.size > 0) {
-				console.log("Data valid Attempting Storage");
+				console.log("Data Valid Attempting Storage");
 				this.recordedChunks.push(event.data);
 			} else {
-				console.log("Data empty or Corrupt");
+				console.log("Data Empty or Corrupt");
 			}
 		};
 	};
@@ -190,7 +195,7 @@ class App extends Component {
 		console.log(this.recordedChunks);
 	};
 	//Data Functions
-	saveData = () => {
+	saveData = async () => {
 		console.log(this.recordedChunks);
 		let file = new File(this.recordedChunks, "test.webm");
 		if (file.size > 0) {
@@ -199,28 +204,47 @@ class App extends Component {
 		} else {
 			console.log("Save Failed");
 		}
-		const url = window.URL.createObjectURL(file);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = "test.webm";
-		a.click();
+
+		//File Handling Excecution
+		let { clientDownload,S3Upload } = this.saveDataOptions
+		if (clientDownload) {
+			this.clientDownload(file);
+		}
+		if (S3Upload) {
+			this.setState({ isUploading: true })
+			await this.S3Upload(file);
+			this.setState({ isUploading: false });
+		}
+		if (!clientDownload && !S3Upload) {
+			console.log("No file Handling Selected!!!")
+		}
 	};
 
-	uploadToS3 = (fileData, onUploadProgress) => {
+	clientDownload = (fileData) => {
+		console.log("Client Download Initiated")
+		const url = window.URL.createObjectURL(fileData);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = "VoicePrint.webm";
+		a.click();
+		console.log("Client Download Successful");
+	}
+
+	S3Upload = (fileData, onUploadProgress) => {
+		console.log("S3 Upload Attempted")
 		const options = {
 			url:
-				"https://voiceprint-recordings.s3-ap-southeast-2.amazonaws.com/test+(20).webm",
+				"https://voiceprint-recordings.s3-ap-southeast-2.amazonaws.com/VoicePrint.webm",
 			method: "put",
 			data: fileData,
-			headers: { "Content-Type": "audio/webm;codecs=opus" },
+			headers: { "Content-Type": "audio/*" },
 			onUploadProgress: onUploadProgress
 		};
-
-		return axios(options);
+		return axios.put("https://voiceprint-recordings.s3-ap-southeast-2.amazonaws.com/VoicePrint.webm", fileData, options);
 	};
 	//Mic Functions
 	getMic = async () => {
-		console.log("attempting mic aquisition");
+		console.log("Attempting to Aquire Stream");
 		let stream = await navigator.mediaDevices.getUserMedia(this.constraints);
 		return stream;
 	};
