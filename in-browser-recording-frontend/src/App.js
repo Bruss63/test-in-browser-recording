@@ -7,6 +7,8 @@ import play from "./Assets/play.svg";
 import "./App.css";
 import axios from "axios";
 
+const SIGNED_URL_ENDPOINT = "https://vf4q9rvdzb.execute-api.ap-southeast-2.amazonaws.com/dev/apps/signedURL"
+
 class App extends Component {
 	constructor() {
 		super();
@@ -197,7 +199,7 @@ class App extends Component {
 	//Data Functions
 	saveData = async () => {
 		console.log(this.recordedChunks);
-		let file = new File(this.recordedChunks, "test.webm");
+		let file = new File(this.recordedChunks, "VoicePrint.webm");
 		if (file.size > 0) {
 			console.log("Data Successfully Saved");
 			console.log(file);
@@ -230,17 +232,40 @@ class App extends Component {
 		console.log("Client Download Successful");
 	}
 
-	S3Upload = (fileData, onUploadProgress) => {
-		console.log("S3 Upload Attempted")
-		const options = {
-			url:
-				"https://voiceprint-recordings.s3-ap-southeast-2.amazonaws.com/VoicePrint.webm",
-			method: "put",
-			data: fileData,
-			headers: { "Content-Type": "audio/*" },
-			onUploadProgress: onUploadProgress
-		};
-		return axios.put("https://voiceprint-recordings.s3-ap-southeast-2.amazonaws.com/VoicePrint.webm", fileData, options);
+	S3Upload = (fileData) => {
+		let fileName = fileData.name
+		let fileType = fileData.type
+
+		axios
+			.post(
+				SIGNED_URL_ENDPOINT,
+				{
+					fileName: fileName,
+					fileType: fileType
+				}
+			)
+			.then(response => {
+				console.log(response);
+				let returnData = response.data.data.returnData;
+				let signedRequest = returnData.signedRequest;
+				let url = returnData.url;
+				let options = {
+					headers: {
+						"Content-Type": fileType
+					}
+				};
+				axios
+					.put(signedRequest, fileData, options)
+					.then(result => {
+						console.log("s3 Response");
+					})
+					.catch(error => {
+						alert("Error " + JSON.stringify(error));
+					});
+			})
+			.catch(error => {
+				alert(JSON.stringify(error));
+			})
 	};
 	//Mic Functions
 	getMic = async () => {
