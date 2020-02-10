@@ -20,7 +20,7 @@ class AudioVisualiser extends Component {
 		const sliceWidth = (width * 1.0) / audioData.length;
 		
 		ctx.lineWidth = 2;
-		ctx.strokeStyle = "white";
+		ctx.strokeStyle = "black";
 		ctx.clearRect(0,0,width,height);
 
 		ctx.beginPath();

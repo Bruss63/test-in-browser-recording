@@ -1,12 +1,19 @@
 service: in-browser-recording
+plugins:
+  - serverless-dotenv-plugin
 app: in-browser-recording
 org: bruss63
+
 
 provider:
   name: aws
   runtime: nodejs12.x
   stage: dev
   region: ap-southeast-2
+  environment:
+    BUCKET: ${env:BUCKET}
+    ACCESS_KEY_ID: ${env:ACCESS_KEY_ID}
+    SECRET_ACCESS_KEY: ${env:SECRET_ACCESS_KEY}
 
 # you can add statements to the Lambda function's IAM Role here
 #  iamRoleStatements:

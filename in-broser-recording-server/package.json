@@ -1,0 +1,18 @@
+{
+  "name": "in-browser-recording",
+  "version": "1.0.0",
+  "description": "in-browser-recording-endpoint",
+  "main": "handler.js",
+  "dependencies": {
+    "aws-sdk": "^2.614.0",
+    "dotenv": "^8.2.0"
+  },
+  "devDependencies": {
+    "serverless-dotenv-plugin": "^2.3.1"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Bruss63",
+  "license": "ISC"
+}

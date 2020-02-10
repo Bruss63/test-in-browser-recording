@@ -7,6 +7,12 @@ import play from "./Assets/play.svg";
 import "./App.css";
 import axios from "axios";
 
+//TODO 
+/*
+	s3 stream?? - minimum chunk size 5MB, not viable?
+	node/react server save
+*/
+
 const SIGNED_URL_ENDPOINT = "https://vf4q9rvdzb.execute-api.ap-southeast-2.amazonaws.com/dev/apps/signedURL"
 
 class App extends Component {
@@ -15,15 +21,21 @@ class App extends Component {
 		this.stream = null;
 		this.saveDataOptions = {
 			clientDownload: false,
-			S3Upload: true
+			S3Upload: {
+				singlePart: true,
+				multiPart: false
+			}
 		}
 		this.constraints = { audio: true, video: false };
 		this.mediaRecorder = null;
+		this.timeSlice = 1800000;
 		this.mediaRecorderType = null;
 		this.recordedFile = null;
 		this.minimumRecordTime = 1;
+		this.readingScript = "Example Script Here"
 		this.state = {
 			isUploading: false,
+			isUploaded: false,
 			isSubmitted: false,
 			isRestarting: false,
 			isRecordingPane: false,
@@ -74,15 +86,20 @@ class App extends Component {
 		}
 	};
 
+	ScriptReigon = () => {
+	return <h1 className="script-reigon">{this.readingScript}</h1>;
+		
+	}
+
 	SubmitButton = () => {
-		let { sec, min, isStopped } = this.state;
+		let { sec, min, isStopped, isUploading, isUploaded } = this.state;
 		if ((sec >= this.minimumRecordTime || min >= 1) && isStopped) {
 			return (
 				<button className="submit-button" onClick={this.handleSubmit}>
-					{"Submit"}
+					{isUploading ? "Uploading..." : isUploaded ? "Uploaded!!!" : "Submit"}
 				</button>
 			);
-		} else if (sec < this.minimumRecordTime && !isStopped) {
+		} else if ((sec < this.minimumRecordTime && min < 1) && !isStopped) {
 			return <h1 className="error-message">{"Recording Too Short!!!"}</h1>;
 		} else {
 			return null;
@@ -137,7 +154,7 @@ class App extends Component {
 	};
 
 	handleStartRecorderFromReset = () => {
-		this.mediaRecorder.start();
+		this.mediaRecorder.start(this.timeSlice);
 		this.startTimer();
 		this.setState({ isStopped: false, isRestarting: false });
 	};
@@ -171,7 +188,7 @@ class App extends Component {
 		this.mediaRecorder = new window.MediaRecorder(this.stream);
 		this.mediaRecorderType = this.mediaRecorder.mimeType;
 		this.recordedChunks = [];
-		this.mediaRecorder.start();
+		this.mediaRecorder.start(this.timeSlice);
 		this.mediaRecorder.ondataavailable = event => {
 			if (event.data && event.data.size > 0) {
 				console.log("Data Valid Attempting Storage");
@@ -198,11 +215,12 @@ class App extends Component {
 	};
 	//Data Functions
 	saveData = async () => {
-		console.log(this.recordedChunks);
-		let file = new File(this.recordedChunks, "VoicePrint.webm");
+		console.log("Beginning Data Save, Blobs:")
+		console.log(this.recordedChunks)
+		let file = new File(this.recordedChunks, "VoicePrint.webm",{type: this.mediaRecorderType});
 		if (file.size > 0) {
-			console.log("Data Successfully Saved");
-			console.log(file);
+			console.log("Data Successfully Saved, File:");
+			console.log(file)
 		} else {
 			console.log("Save Failed");
 		}
@@ -212,12 +230,12 @@ class App extends Component {
 		if (clientDownload) {
 			this.clientDownload(file);
 		}
-		if (S3Upload) {
+		if (S3Upload.singlePart) {
 			this.setState({ isUploading: true })
-			await this.S3Upload(file);
-			this.setState({ isUploading: false });
+			await this.S3UploadSinglePart(file);
+			this.setState({ isUploading: false, isUploaded: true });
 		}
-		if (!clientDownload && !S3Upload) {
+		if (!clientDownload && !S3Upload.singlePart && !S3Upload.multiPart) {
 			console.log("No file Handling Selected!!!")
 		}
 	};
@@ -232,40 +250,35 @@ class App extends Component {
 		console.log("Client Download Successful");
 	}
 
-	S3Upload = (fileData) => {
-		let fileName = fileData.name
-		let fileType = fileData.type
-
-		axios
-			.post(
-				SIGNED_URL_ENDPOINT,
-				{
-					fileName: fileName,
-					fileType: fileType
-				}
-			)
+	S3UploadSinglePart = (fileData) => {
+		console.log("Beginning Single Upload, Generating URL")
+		axios.get(SIGNED_URL_ENDPOINT)
 			.then(response => {
-				console.log(response);
-				let returnData = response.data.data.returnData;
-				let signedRequest = returnData.signedRequest;
-				let url = returnData.url;
-				let options = {
+				console.log(`URL Generated: ${response.data.url}`);
+				let url = response.data.url;
+
+				let params = {
+					url: url,
+					method: "put",
 					headers: {
-						"Content-Type": fileType
+						"Content-Type": "audio/*"
+					},
+					onUploadProgress: progressEvent => {
+						let progress = Math.round(
+							(progressEvent.loaded * 100) / progressEvent.total
+						);
+						console.log(`Progress: ${progress}%`);
 					}
 				};
-				axios
-					.put(signedRequest, fileData, options)
-					.then(result => {
-						console.log("s3 Response");
-					})
-					.catch(error => {
-						alert("Error " + JSON.stringify(error));
-					});
+
+				axios.put(url, fileData, params)
+				.then(response => {
+					console.log("Done")
+				})
 			})
 			.catch(error => {
 				alert(JSON.stringify(error));
-			})
+			});
 	};
 	//Mic Functions
 	getMic = async () => {
@@ -338,7 +351,8 @@ class App extends Component {
 		return (
 			<div className="App">
 				<h1>{"Record VoicePrint"}</h1>
-				<this.MainButtonCluster />
+				<this.ScriptReigon/>
+				<this.MainButtonCluster/>
 				<this.TimerDisplay />
 				<this.SubmitButton />
 				{!this.state.isStopped ? <AudioAnalyser audio={this.stream} /> : ""}
