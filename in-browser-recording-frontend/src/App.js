@@ -26,9 +26,10 @@ class App extends Component {
 				multiPart: false
 			}
 		}
+		this.showScriptReigon = false;
 		this.constraints = { audio: true, video: false };
 		this.mediaRecorder = null;
-		this.timeSlice = 1800000;
+		this.timeSlice = 60000;
 		this.mediaRecorderType = null;
 		this.recordedFile = null;
 		this.minimumRecordTime = 1;
@@ -87,8 +88,13 @@ class App extends Component {
 	};
 
 	ScriptReigon = () => {
-	return <h1 className="script-reigon">{this.readingScript}</h1>;
-		
+		if (this.showScriptReigon) {
+			return <h1 className="script-reigon">{this.readingScript}</h1>;
+
+		}
+		else {
+			return null
+		}	
 	}
 
 	SubmitButton = () => {
