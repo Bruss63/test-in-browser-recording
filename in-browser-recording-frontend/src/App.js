@@ -350,7 +350,7 @@ function App () {
 			<MainButtonCluster/>
 			<TimerDisplay />
 			<SubmitButton />
-			{/* {!isStopped ? <AudioAnalyser audio={stream} /> : ""} */}
+			{!isStopped ? <AudioAnalyser audio={stream} /> : ""}
 		</div>
 	);
 }
