@@ -1,72 +1,83 @@
-import React, { Component } from "react";
+import React, { useState } from "react";
+//Custom Scripts
 import AudioAnalyser from './Modules/AudioAnalyser.js';
+//Images and Formatting
 import microphone from "./Assets/microphone-logo.svg";
 import reset from "./Assets/reset.svg";
 import stop from "./Assets/stop.svg";
 import play from "./Assets/play.svg";
 import "./App.css";
+//Uploading Modules
 import axios from "axios";
 
 //TODO 
 /*
 	s3 stream?? - minimum chunk size 5MB, not viable?
-	node/react server save
 */
 
-const SIGNED_URL_ENDPOINT = "https://vf4q9rvdzb.execute-api.ap-southeast-2.amazonaws.com/dev/apps/signedURL"
 
-class App extends Component {
-	constructor() {
-		super();
-		this.stream = null;
-		this.saveDataOptions = {
-			clientDownload: false,
-			S3Upload: {
-				singlePart: true,
-				multiPart: false
-			}
+
+function App () {
+	//constants
+	const readingScript = "Example Script Here";
+	const minimumRecordTime = 1;
+	const constraints = { audio: true, video: false };
+	const timeSlice = 60000;
+	const SIGNED_URL_ENDPOINT =
+		"https://vf4q9rvdzb.execute-api.ap-southeast-2.amazonaws.com/dev/apps/signedURL";
+	
+	//settings
+	const saveDataOptions = {
+		clientDownload: false,
+		S3Upload: {
+			singlePart: true,
+			multiPart: false
 		}
-		this.constraints = { audio: true, video: false };
-		this.mediaRecorder = null;
-		this.timeSlice = 1800000;
-		this.mediaRecorderType = null;
-		this.recordedFile = null;
-		this.minimumRecordTime = 1;
-		this.readingScript = "Example Script Here"
-		this.state = {
-			isUploading: false,
-			isUploaded: false,
-			isSubmitted: false,
-			isRestarting: false,
-			isRecordingPane: false,
-			timerDisplaying: false,
-			timerActive: false,
-			isStopped: true,
-			min: 0,
-			sec: 0,
-			ms: 0,
-			start: 0
-		};
 	}
-
+	const showScriptReigon = false;
+	//Audio
+	let [stream,setStream] = useState(null);
+	let [mediaRecorder,setMediaRecorder] = useState(null);
+	let mediaRecorderType = null;
+	let recordedChunks = [];
+	//Networking
+	// let multipartUpload = null;
+	//timer
+	let min = 0
+	let sec = 0
+	let ms = 0
+	let timer = null;
+	let formattedMs = 0;
+	let formattedSec = 0;
+	let formattedMin = 0;
+	let start = 0
+	//states	
+	let [isUploading,setUploading] = useState(false);
+	let [isUploaded,setUploaded] = useState(false);
+	let [isSubmitted,setSubmitted] = useState(false);
+	let [isRestarting,setRestarting] = useState(false);
+	let [isRecordingPane,setRecordingPane] = useState(false);
+	let [timerDisplaying,setTimerDisplaying] = useState(false);
+	let [timerActive,setTimerActive] = useState(false);
+	let [isStopped,setStopped] = useState(true);
+	
 
 	//Custom Buttons
-	TimerDisplay = () => {
-		let { ms, sec, min, timerDisplaying } = this.state;
-		ms = ms.toString();
-		sec = sec.toString();
-		min = min.toString();
+	function TimerDisplay() {
+		formattedMs = ms.toString();
+		formattedSec = sec.toString();
+		formattedMin = min.toString();
 
-		while (ms.length !== 4) {
-			ms = 0 + ms;
+		while (formattedMs.length !== 4) {
+			formattedMs = 0 + formattedMs;
 		}
 
-		while (sec.length !== 2) {
-			sec = 0 + sec;
+		while (formattedSec.length !== 2) {
+			formattedSec = 0 + formattedSec;
 		}
 
-		while (min.length !== 2) {
-			min = 0 + min;
+		while (formattedMin.length !== 2) {
+			formattedMin = 0 + formattedMin;
 		}
 
 		if (timerDisplaying) {
@@ -86,32 +97,34 @@ class App extends Component {
 		}
 	};
 
-	ScriptReigon = () => {
-	return <h1 className="script-reigon">{this.readingScript}</h1>;
-		
+	function ScriptReigon() {
+		if (showScriptReigon) {
+			return <h1 className="script-reigon">{readingScript}</h1>;
+
+		}
+		else {
+			return null
+		}	
 	}
 
-	SubmitButton = () => {
-		let { sec, min, isStopped, isUploading, isUploaded } = this.state;
-		if ((sec >= this.minimumRecordTime || min >= 1) && isStopped) {
+	function SubmitButton()  {
+		if ((sec >= minimumRecordTime || min >= 1) && isStopped) {
 			return (
-				<button className="submit-button" onClick={this.handleSubmit}>
+				<button className="submit-button" onClick={handleSubmit}>
 					{isUploading ? "Uploading..." : isUploaded ? "Uploaded!!!" : "Submit"}
 				</button>
 			);
-		} else if ((sec < this.minimumRecordTime && min < 1) && !isStopped) {
+		} else if ((sec < minimumRecordTime && min < 1) && !isStopped) {
 			return <h1 className="error-message">{"Recording Too Short!!!"}</h1>;
 		} else {
 			return null;
 		}
 	};
 
-	MainButtonCluster = () => {
-		let { isRecordingPane, isSubmitted, isRestarting } = this.state;
-
+	function MainButtonCluster() {
 		if (!isRecordingPane) {
 			return (
-				<button className="record-button" onClick={this.handleStartRecorder}>
+				<button className="record-button" onClick={handleStartRecorder}>
 					<img className="microphone" src={microphone} alt="err"></img>
 				</button>
 			);
@@ -122,8 +135,8 @@ class App extends Component {
 						className="stop-button"
 						onClick={
 							isRestarting
-								? this.handleStartRecorderFromReset
-								: this.handleStopRecorder
+								? handleStartRecorderFromReset
+								: handleStopRecorder
 						}
 					>
 						<img
@@ -134,7 +147,7 @@ class App extends Component {
 					</button>
 
 					{!isSubmitted ? (
-						<button className="reset-button" onClick={this.handleReset}>
+						<button className="reset-button" onClick={handleReset}>
 							<img className="reset" src={reset} alt="err" />
 						</button>
 					) : (
@@ -145,79 +158,79 @@ class App extends Component {
 		}
 	};
 	//Handlers
-	handleSubmit = () => {
+	function handleSubmit() {
 		console.log("Submit Attempted");
-		this.stopMic();
-		this.stopTimer();
-		this.saveData();
-		this.setState({ isSubmitted: true });
+		stopMic();
+		stopTimer();
+		saveData();
+		setSubmitted(true)
 	};
 
-	handleStartRecorderFromReset = () => {
-		this.mediaRecorder.start(this.timeSlice);
-		this.startTimer();
-		this.setState({ isStopped: false, isRestarting: false });
+	function handleStartRecorderFromReset() {
+		mediaRecorder.start(timeSlice);
+		startTimer();
+		setStopped(false) 
+		setRestarting(false)
 	};
 
-	handleStartRecorder = async () => {
-		await this.startRecorder();
-		this.setState({
-			isRecordingPane: true,
-			isStopped: false
-		});
-		this.startTimer();
+	async function handleStartRecorder() {
+		await startRecorder();
+		setRecordingPane(true)
+		setStopped(false)
+		startTimer();
 	};
 
-	handleStopRecorder = () => {
-		this.setState({ isStopped: true });
-		this.stopTimer();
-		this.stopRecorder();
+	function handleStopRecorder() {
+		setStopped(true)
+		stopTimer();
+		stopRecorder();
 	};
 
-	handleReset = () => {
-		this.resetTimer();
-		this.resetRecorder();
-		this.setState({ isRestarting: true, isStopped: true });
+	function handleReset() {
+		resetTimer();
+		resetRecorder();
+		setRestarting(true)
+		setStopped(true)
 	};
 
-	startRecorder = async () => {
-		this.stream = await this.getMic();
-		if (this.stream) {
+	async function startRecorder() {
+		stream = await getMic();
+		if (stream) {
 			console.log("Aquired Stream ");
 		}
-		this.mediaRecorder = new window.MediaRecorder(this.stream);
-		this.mediaRecorderType = this.mediaRecorder.mimeType;
-		this.recordedChunks = [];
-		this.mediaRecorder.start(this.timeSlice);
-		this.mediaRecorder.ondataavailable = event => {
+		mediaRecorder = new window.MediaRecorder(stream);
+		mediaRecorderType = mediaRecorder.mimeType;
+		recordedChunks = [];
+		mediaRecorder.start(timeSlice);
+		mediaRecorder.ondataavailable = event => {
 			if (event.data && event.data.size > 0) {
 				console.log("Data Valid Attempting Storage");
-				this.recordedChunks.push(event.data);
+				recordedChunks.push(event.data);
 			} else {
 				console.log("Data Empty or Corrupt");
 			}
 		};
 	};
 	//Recorder Functions
-	stopRecorder = () => {
-		if (this.mediaRecorder.state !== "inactive") {
-			this.mediaRecorder.stop();
+	function stopRecorder() {
+		if (mediaRecorder.state !== "inactive") {
+			mediaRecorder.stop();
 		}
 	};
 
-	resetRecorder = async () => {
-		this.setState({ isStopped: true });
-		if (this.mediaRecorder.state !== "inactive") {
-			this.mediaRecorder.stop();
+	async function resetRecorder() {
+		setStopped(true)
+		if (mediaRecorder.state !== "inactive") {
+			mediaRecorder.stop();
 		}
-		this.recordedChunks = [];
-		console.log(this.recordedChunks);
+		recordedChunks = [];
+		console.log(recordedChunks);
 	};
 	//Data Functions
-	saveData = async () => {
+	async function saveData() {
 		console.log("Beginning Data Save, Blobs:")
-		console.log(this.recordedChunks)
-		let file = new File(this.recordedChunks, "VoicePrint.webm",{type: this.mediaRecorderType});
+		console.log(recordedChunks)
+		let file = new File(recordedChunks, "VoicePrint.webm",{type: mediaRecorderType});
 		if (file.size > 0) {
 			console.log("Data Successfully Saved, File:");
 			console.log(file)
@@ -226,21 +239,22 @@ class App extends Component {
 		}
 
 		//File Handling Excecution
-		let { clientDownload,S3Upload } = this.saveDataOptions
+		let { clientDownload,S3Upload } = saveDataOptions
 		if (clientDownload) {
-			this.clientDownload(file);
+			clientDownload(file);
 		}
 		if (S3Upload.singlePart) {
-			this.setState({ isUploading: true })
-			await this.S3UploadSinglePart(file);
-			this.setState({ isUploading: false, isUploaded: true });
+			setUploading(true);
+			S3UploadSinglePart(file);
+			setUploading(false);
+			setUploaded(true)
 		}
 		if (!clientDownload && !S3Upload.singlePart && !S3Upload.multiPart) {
 			console.log("No file Handling Selected!!!")
 		}
 	};
 
-	clientDownload = (fileData) => {
+	function clientDownload(fileData) {
 		console.log("Client Download Initiated")
 		const url = window.URL.createObjectURL(fileData);
 		const a = document.createElement("a");
@@ -250,7 +264,7 @@ class App extends Component {
 		console.log("Client Download Successful");
 	}
 
-	S3UploadSinglePart = (fileData) => {
+	function S3UploadSinglePart (fileData) {
 		console.log("Beginning Single Upload, Generating URL")
 		axios.get(SIGNED_URL_ENDPOINT)
 			.then(response => {
@@ -280,85 +294,65 @@ class App extends Component {
 				alert(JSON.stringify(error));
 			});
 	};
+
 	//Mic Functions
-	getMic = async () => {
+	async function getMic() {
 		console.log("Attempting to Aquire Stream");
-		let stream = await navigator.mediaDevices.getUserMedia(this.constraints);
+		let stream = await navigator.mediaDevices.getUserMedia(constraints);
 		return stream;
 	};
 
-	stopMic = () => {
-		if (this.stream) {
-			this.stream.getTracks().forEach(track => track.stop());
-			this.setState({ stream: null });
+	function stopMic() {
+		if (stream) {
+			stream.getTracks().forEach(track => track.stop());
+			stream = null;
 		}
 	};
 	//Timer Functions
-	startTimer = () => {
-		this.setState({
-			timerActive: true,
-			timerDisplaying: true,
-			time: this.state.time,
-			start: Date.now() - this.state.ms
-		});
-		this.timer = setInterval(this.updateTimer, 1);
+	function startTimer() {
+		setTimerActive(true)
+		setTimerDisplaying(true)
+		start = Date.now() - ms
+		timer = setInterval(updateTimer, 1);
 	};
 
-	updateTimer = () => {
-		let ms = Date.now() - this.state.start;
-		let sec = this.state.sec;
-		let min = this.state.min;
+	function updateTimer() {
+		ms = Date.now() - start;
 		if (ms >= 1000) {
-			this.setState({ start: Date.now() });
+			start = Date.now();
+			ms = Date.now() - start
 			sec += 1;
 		}
 		if (sec >= 60) {
 			sec = 0;
 			min += 1;
 		}
-		this.setState({
-			ms: Date.now() - this.state.start,
-			sec: sec,
-			min: min
-		});
 	};
 
-	stopTimer = () => {
-		this.setState({ timerActive: false });
-		clearInterval(this.timer);
+	function stopTimer() {
+		setTimerActive(false)
+		clearInterval(timer);
 	};
 
-	resetTimer = () => {
-		this.setState({
-			timerActive: false,
-			min: 0,
-			sec: 0,
-			ms: 0,
-			timerDisplaying: false
-		});
-		clearInterval(this.timer);
+	function resetTimer() {
+		setTimerActive(false)
+		min = 0
+		sec = 0
+		ms = 0
+		setTimerDisplaying(false)
+		clearInterval(timer);
 	};
 
-	toggleTimer = () => {
-		if (this.state.timerActive) {
-			this.stopTimer();
-		} else if (!this.state.timerActive) {
-			this.startTimer();
-		}
-	};
-	//Renderer	
-	render() {
-		return (
-			<div className="App">
-				<h1>{"Record VoicePrint"}</h1>
-				<this.ScriptReigon/>
-				<this.MainButtonCluster/>
-				<this.TimerDisplay />
-				<this.SubmitButton />
-				{!this.state.isStopped ? <AudioAnalyser audio={this.stream} /> : ""}
-			</div>
-		);
-	}
+	return (
+		<div className="App">
+			<h1>{"Record VoicePrint"}</h1>
+			<ScriptReigon/>
+			<MainButtonCluster/>
+			<TimerDisplay />
+			<SubmitButton />
+			{!isStopped ? <AudioAnalyser audio={stream} /> : ""}
+		</div>
+	);
 }
 
 
