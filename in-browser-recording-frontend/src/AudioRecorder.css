@@ -1,0 +1,45 @@
+.container {
+    display: inline-block;
+    width: 300px;
+    height: 100px;
+    background-color: rgb(65, 64, 77);
+    border: none;
+    border-radius: 15px;
+}
+
+.change-mode {
+    display: inline-block;
+    text-align: center;
+    font-size: 10px;
+    vertical-align: middle;
+    margin: 25px 10px;
+    width: 50px;
+    height: 50px;
+}
+
+.play {
+    display: inline-block;
+    text-align: center;
+    vertical-align: middle;
+    margin: 25px 10px;
+    width: 50px;
+    height: 50px;
+}
+
+.stop {
+    display: inline-block;
+    text-align: center;
+    vertical-align: middle;
+    margin: 25px 10px;
+    width: 50px;
+    height: 50px;
+}
+
+.render-error {
+    font-size: medium;
+    color: red;
+    padding: 10px;
+    background-color: rgb(65, 64, 77);
+    border: none;
+    border-radius: 5px;
+}
