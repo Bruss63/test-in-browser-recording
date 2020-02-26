@@ -1,7 +1,9 @@
 .container {
     display: inline-block;
-    width: 300px;
-    height: 100px;
+    width: auto;
+    height: 70px;
+    min-width: 140px;
+    max-width: 210px;
     background-color: rgb(65, 64, 77);
     border: none;
     border-radius: 15px;
@@ -10,9 +12,11 @@
 .change-mode {
     display: inline-block;
     text-align: center;
-    font-size: 10px;
     vertical-align: middle;
-    margin: 25px 10px;
+    margin: 10px 10px;
+    padding: 0;
+    border: none;
+    background: none;
     width: 50px;
     height: 50px;
 }
@@ -21,7 +25,10 @@
     display: inline-block;
     text-align: center;
     vertical-align: middle;
-    margin: 25px 10px;
+    margin: 10px 10px;
+    padding: 0;
+    border: none;
+    background: none;
     width: 50px;
     height: 50px;
 }
@@ -30,16 +37,27 @@
     display: inline-block;
     text-align: center;
     vertical-align: middle;
-    margin: 25px 10px;
+    margin: 10px 10px;
+    padding: 0;
+    border: none;
+    background: none;
     width: 50px;
     height: 50px;
 }
 
-.render-error {
+.error {
+    display: inline-block;
     font-size: medium;
-    color: red;
+    color: rgb(114, 121, 133);
+    margin: 0px;
     padding: 10px;
-    background-color: rgb(65, 64, 77);
-    border: none;
-    border-radius: 5px;
+
+}
+
+.svg-icon path {
+    transition-duration: 0.2s;
+}
+
+.svg-icon:hover path {    
+    fill: rgb(141, 147, 156);
 }
