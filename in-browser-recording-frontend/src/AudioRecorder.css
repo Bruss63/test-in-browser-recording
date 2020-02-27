@@ -2,8 +2,8 @@
     display: inline-block;
     width: auto;
     height: 70px;
-    min-width: 140px;
-    max-width: 210px;
+    /* min-width: 70px;
+    max-width: 210px; */
     background-color: rgb(65, 64, 77);
     border: none;
     border-radius: 15px;
@@ -60,4 +60,13 @@
 
 .svg-icon:hover path {    
     fill: rgb(141, 147, 156);
+}
+
+@keyframes loading {
+    from {
+        transform:rotate(0deg);
+    }
+    to {
+        transform:rotate(360deg);
+    }
 }

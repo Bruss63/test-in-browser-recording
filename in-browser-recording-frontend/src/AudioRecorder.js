@@ -8,12 +8,13 @@ import Mic from "./Icons/MicIcon";
 import Reset from "./Icons/UndoIcon";
 
 function AudioRecorder({
+	onFileReady /*File Callback to Parent*/,
 	type = "small" /*Changes Style, No Current Use*/,
+	shape = "rounded",
 	btnColour = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
-	playback = false /*Enables and Disables Playback Function*/,
+	playback = false /*Enables and Disables Playback Function !!!Not Finished!!!*/,
 	chunkSize = 60000 /*Size of recorded Blobs*/,
-	fileType = "webm" /*Specify File Type*/,
-	onFileReady /*File Callback to Parent*/
+	fileType = "webm" /*Specify File Type*/
 }) {
 	//Settings
 	const constraints = { audio: true, video: false };
@@ -125,6 +126,7 @@ function AudioRecorder({
 		console.log({ message: "Reseting Recording" });
 		setMediaRecorderState("inactive");
 		setRecordedChunks([]);
+		setFile(undefined);
 	};
 	//Playback Functions
 	const startPlayback = () => {
@@ -173,6 +175,16 @@ function AudioRecorder({
 		}
 	};
 
+	const handleCompactButton = () => {
+		if (mediaRecorderState === "inactive" && file === undefined) {
+			beginRecording()
+		} else if (mediaRecorderState === "recording") {
+			stopRecording()
+		} else {
+			resetRecording()
+		}
+	};
+
 	const handlePausePlay = () => {
 		if (mode === "recording") {
 			if (mediaRecorderState === "inactive") {
@@ -211,6 +223,16 @@ function AudioRecorder({
 		}
 	};
 
+	const CompactButton = ({ fill }) => {
+		if (mediaRecorderState === "inactive" && file === undefined) {
+			return <Play fill={fill} />;
+		} else if (mediaRecorderState === "recording") {
+			return <Stop fill={fill} />;
+		} else {
+			return <Reset fill={fill} />;
+		}
+	}
+
 	const PausePlay = ({ fill }) => {
 		if (mode === "recording") {
 			if (mediaRecorderState === "recording") {
@@ -236,6 +258,42 @@ function AudioRecorder({
 	};
 
 	//Rendering
+	if (type === "docked") {
+		if (mediaRecorder === undefined) {
+			<div className={"container"}>
+				<h1 className={"error"}>{"Loading..."}</h1>
+			</div>
+		}
+		else {
+			if (mode === "recording") {
+				return (
+					<div className={"container"}>
+						<h1 className={"error"}>{"WIP"}</h1>
+					</div>
+				);
+			}
+			else {
+				return (
+					<div className={"container"}>
+						<h1 className={"error"}>{"WIP"}</h1>
+					</div>
+				);
+			}
+		}
+	}
+	else if (type === "large") {
+
+	}
+	else if (type === "small") {
+
+	}
+	else if (type === "compact") {
+
+	}
+	else {
+		return null
+	}
+
 	if (mode === "recording") {
 		if (mediaRecorder !== undefined) {
 			if (type === "small") {
@@ -257,7 +315,17 @@ function AudioRecorder({
 						</button>
 					</div>
 				);
-			} else {
+			}
+			else if (type === "compact"){
+				return (
+					<div width = {'70px'} className={"container"}>
+						<button className={"play"} onClick={handleCompactButton}>
+							<CompactButton fill={btnColour} />
+						</button>
+					</div>
+				);
+			}
+			else {
 				return (
 					<div className={"container"}>
 						<h1 className={"error"}>{"Error when rendering"}</h1>

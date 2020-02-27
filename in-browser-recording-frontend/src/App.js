@@ -5,7 +5,7 @@ import { clientDownload, S3UploadSinglePart } from "./Modules/Networking";
 
 function App() {
 	//File Handling Settings
-	const download = true; //Set true to download directly to local machine --Testing Only--
+	const download = false; //Set true to download directly to local machine --Testing Only--
 	const s3Upload = true; //Set true to upload to s3 bucket specified below
 	const SIGNED_URL_ENDPOINT =
 		"https://vf4q9rvdzb.execute-api.ap-southeast-2.amazonaws.com/dev/apps/signedURL";
@@ -23,7 +23,7 @@ function App() {
 	return (
 		<div className="App">
 			<h1>{"App"}</h1>
-			<AudioRecorder playback={false} onFileReady={handleFile} />
+			<AudioRecorder type={"small"} onFileReady={handleFile} />
 		</div>
 	);
 }
