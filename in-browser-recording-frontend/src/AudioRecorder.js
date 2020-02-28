@@ -324,9 +324,11 @@ function AudioRecorder({
 	if (type === "docked") {
 		if (mediaRecorder === undefined) {
 			return (
-				<h1 className={"icon"}>
-					<Loading fill={btnColor} />
-				</h1>
+				<div style={style} className={"container"}>
+					<h1 className={"icon"}>
+						<Loading fill={btnColor} />
+					</h1>
+				</div>
 			);
 		} else {
 			if (mode === "recording") {
