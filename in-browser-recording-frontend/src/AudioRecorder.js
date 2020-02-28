@@ -6,12 +6,15 @@ import Stop from "./Icons/StopIcon";
 import Playback from "./Icons/PlaybackIcon";
 import Mic from "./Icons/MicIcon";
 import Reset from "./Icons/UndoIcon";
+import Loading from "./Icons/LoadingIcon";
 
 function AudioRecorder({
 	onFileReady /*File Callback to Parent*/,
-	type = "small" /*Changes Style, No Current Use*/,
-	shape = "rounded",
-	btnColour = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
+	type = "compact" /*Changes Type of Recorder*/,
+	shape = "circular" /*Changes Shape of Edges, No Current Use*/,
+	backgroundColor = "rgb(65, 64, 77)" /*Colour of Background*/,
+	btnColor = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
+	display = "inline-block" /*Change Display of Container*/, 
 	playback = false /*Enables and Disables Playback Function !!!Not Finished!!!*/,
 	chunkSize = 60000 /*Size of recorded Blobs*/,
 	fileType = "webm" /*Specify File Type*/
@@ -26,6 +29,7 @@ function AudioRecorder({
 	const [stream, setStream] = useState(undefined);
 	const [file, setFile] = useState(undefined);
 	const [mode, setMode] = useState("recording");
+	const [style, setStyle] = useState({});
 	//Refs
 	const audioPlayerRef = useRef(null);
 	//Setup
@@ -97,6 +101,35 @@ function AudioRecorder({
 		}
 	};
 
+	const configureUI = () => {
+		let borderRadius = "0px";
+		let width = "70px";
+		if (shape === "circular") {
+			borderRadius = "35px";
+		} else if (shape === "rounded") {
+			borderRadius = "15px";
+		}
+
+		if (type === "docked") {
+			width = "100%";
+		} else if (type === "large") {
+			width = "210px";
+		} else if (type === "small") {
+			if (playback) {
+				width = "210px";
+			} else {
+				width = "140px";
+			}
+		}
+
+		setStyle({
+			backgroundColor,
+			borderRadius,
+			width,
+			display
+		});
+	};
+
 	//Recording Functions
 	const beginRecording = () => {
 		console.log({ message: "Beginning Recording" });
@@ -142,6 +175,7 @@ function AudioRecorder({
 	useEffect(() => {
 		//Run on open
 		getStream();
+		configureUI();
 	}, []);
 
 	useEffect(() => {
@@ -177,11 +211,11 @@ function AudioRecorder({
 
 	const handleCompactButton = () => {
 		if (mediaRecorderState === "inactive" && file === undefined) {
-			beginRecording()
+			beginRecording();
 		} else if (mediaRecorderState === "recording") {
-			stopRecording()
+			stopRecording();
 		} else {
-			resetRecording()
+			resetRecording();
 		}
 	};
 
@@ -231,7 +265,7 @@ function AudioRecorder({
 		} else {
 			return <Reset fill={fill} />;
 		}
-	}
+	};
 
 	const PausePlay = ({ fill }) => {
 		if (mode === "recording") {
@@ -260,116 +294,119 @@ function AudioRecorder({
 	//Rendering
 	if (type === "docked") {
 		if (mediaRecorder === undefined) {
-			<div className={"container"}>
-				<h1 className={"error"}>{"Loading..."}</h1>
-			</div>
-		}
-		else {
-			if (mode === "recording") {
-				return (
-					<div className={"container"}>
-						<h1 className={"error"}>{"WIP"}</h1>
-					</div>
-				);
-			}
-			else {
-				return (
-					<div className={"container"}>
-						<h1 className={"error"}>{"WIP"}</h1>
-					</div>
-				);
-			}
-		}
-	}
-	else if (type === "large") {
-
-	}
-	else if (type === "small") {
-
-	}
-	else if (type === "compact") {
-
-	}
-	else {
-		return null
-	}
-
-	if (mode === "recording") {
-		if (mediaRecorder !== undefined) {
-			if (type === "small") {
-				return (
-					<div className={"container"}>
-						{playback ? (
-							<button
-								className={"change-mode"}
-								onClick={handleChangeMode}
-							>
-								<Mode fill={btnColour} />
-							</button>
-						) : null}
-						<button className={"play"} onClick={handlePausePlay}>
-							<PausePlay fill={btnColour} />
-						</button>
-						<button className={"stop"} onClick={handleStopStart}>
-							<StopReset fill={btnColour} />
-						</button>
-					</div>
-				);
-			}
-			else if (type === "compact"){
-				return (
-					<div width = {'70px'} className={"container"}>
-						<button className={"play"} onClick={handleCompactButton}>
-							<CompactButton fill={btnColour} />
-						</button>
-					</div>
-				);
-			}
-			else {
-				return (
-					<div className={"container"}>
-						<h1 className={"error"}>{"Error when rendering"}</h1>
-					</div>
-				);
-			}
-		} else {
 			return (
-				<div className={"container"}>
+				<div style={style} className={"container"}>
 					<h1 className={"error"}>{"Loading..."}</h1>
 				</div>
 			);
+		} else {
+			if (mode === "recording") {
+				return (
+					<div style={style} className={"container"}>
+						<h1 className={"error"}>{"WIP"}</h1>
+					</div>
+				);
+			} else {
+				return (
+					<div style={style} className={"container"}>
+						<h1 className={"error"}>{"WIP"}</h1>
+					</div>
+				);
+			}
 		}
-	} else {
-		if (file === undefined) {
+	} else if (type === "large") {
+		if (mediaRecorder === undefined) {
 			return (
-				<div className={"container"}>
-					<button
-						className={"change-mode"}
-						onClick={handleChangeMode}
-					>
-						<Mode fill={btnColour}></Mode>
-					</button>
-					<h1 className={"error"}>
-						{`No Audio`} <br /> {`Recorded`}
+				<div style={style} className={"container"}>
+					<h1 className={"icon"}>
+						<Loading fill={btnColor} />
+					</h1>
+				</div>
+			);
+		} else {
+			if (mode === "recording") {
+				return (
+					<div style={style} className={"container"}>
+						<h1 className={"error"}>{"WIP"}</h1>
+					</div>
+				);
+			} else {
+				return (
+					<div style={style} className={"container"}>
+						<h1 className={"error"}>{"WIP"}</h1>
+					</div>
+				);
+			}
+		}
+	} else if (type === "small") {
+		if (mediaRecorder === undefined) {
+			return (
+				<div style={style} className={"icon"} className={"container"}>
+					<h1 className={"icon"}>
+						<Loading fill={btnColor} />
+					</h1>
+				</div>
+			);
+		} else {
+			if (mode === "recording") {
+				return (
+					<div style={style} className={"container"}>
+						{playback ? (
+							<button
+								className={"icon"}
+								onClick={handleChangeMode}
+							>
+								<Mode fill={btnColor} />
+							</button>
+						) : null}
+						<button className={"icon"} onClick={handlePausePlay}>
+							<PausePlay fill={btnColor} />
+						</button>
+						<button className={"icon"} onClick={handleStopStart}>
+							<StopReset fill={btnColor} />
+						</button>
+					</div>
+				);
+			} else {
+				return (
+					<div style={style} className={"container"}>
+						{playback ? (
+							<button
+								className={"icon"}
+								onClick={handleChangeMode}
+							>
+								<Mode fill={btnColor} />
+							</button>
+						) : null}
+						<h1 className={"error"}>
+							{"No Audio"}
+							<br />
+							{"Recored"}
+						</h1>
+					</div>
+				);
+			}
+		}
+	} else if (type === "compact") {
+		if (mediaRecorder === undefined) {
+			return (
+				<div style={style} className={"container"}>
+					<h1 className={"icon"}>
+						<Loading fill={btnColor} />
 					</h1>
 				</div>
 			);
 		} else {
 			return (
-				<div className={"container"}>
-					<button
-						className={"change-mode"}
-						onClick={handleChangeMode}
-					>
-						<Mode fill={btnColour}></Mode>
+				<div style={style} className={"container"}>
+					<button className={"icon"} onClick={handleCompactButton}>
+						<CompactButton fill={btnColor} />
 					</button>
-					<button className={"play"} onClick={handlePausePlay}>
-						<PausePlay fill={btnColour} />
-					</button>
-					<audio ref={audioPlayerRef} src={file}></audio>
 				</div>
 			);
 		}
+	} else {
+		return null;
 	}
 }
 
