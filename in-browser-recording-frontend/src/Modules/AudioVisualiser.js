@@ -1,8 +1,8 @@
 import React, { Component } from 'react';
 
 class AudioVisualiser extends Component {
-	constructor() {
-		super()
+	constructor(props) {
+		super(props)
 		this.canvas = React.createRef();
 	}
 
@@ -38,7 +38,7 @@ class AudioVisualiser extends Component {
 
 	render() {
 		return (
-			<canvas width = "600" height = "300" ref = {this.canvas}/>
+			<canvas style = {{display: "inline-block", verticalAlign: "middle"}} width = {this.props.width} height = "70px" ref = {this.canvas}/>
 		)
 	}
 }

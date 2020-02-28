@@ -23,7 +23,7 @@ function App() {
 	return (
 		<div className="App">
 			<h1>{"App"}</h1>
-			<AudioRecorder onFileReady={handleFile} />
+			<AudioRecorder type = "docked" onFileReady={handleFile} />
 		</div>
 	);
 }

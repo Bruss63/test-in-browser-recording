@@ -7,6 +7,7 @@ import Playback from "./Icons/PlaybackIcon";
 import Mic from "./Icons/MicIcon";
 import Reset from "./Icons/UndoIcon";
 import Loading from "./Icons/LoadingIcon";
+import AudioAnalyser from "./Modules/AudioAnalyser";
 
 function AudioRecorder({
 	onFileReady /*File Callback to Parent*/,
@@ -30,6 +31,9 @@ function AudioRecorder({
 	const [file, setFile] = useState(undefined);
 	const [mode, setMode] = useState("recording");
 	const [style, setStyle] = useState({});
+	const [windowWidth, setWindowWidth] = useState(
+		window.innerWidth * 0.2
+	);
 	//Refs
 	const audioPlayerRef = useRef(null);
 	//Setup
@@ -104,6 +108,10 @@ function AudioRecorder({
 	const configureUI = () => {
 		let borderRadius = "0px";
 		let width = "70px";
+		let height = "70px";
+		let position = "relative"
+		let bottom = null;
+		let left = null;
 		if (shape === "circular") {
 			borderRadius = "35px";
 		} else if (shape === "rounded") {
@@ -111,9 +119,17 @@ function AudioRecorder({
 		}
 
 		if (type === "docked") {
-			width = "100%";
+			width = "100%"
+			height = "70px"
+			position = "absolute"
+			bottom = "0"
+			left = "0"
+			borderRadius = "0px"
+
+
 		} else if (type === "large") {
 			width = "210px";
+			height = "140px";
 		} else if (type === "small") {
 			if (playback) {
 				width = "210px";
@@ -126,7 +142,11 @@ function AudioRecorder({
 			backgroundColor,
 			borderRadius,
 			width,
-			display
+			height,
+			display,
+			position,
+			bottom,
+			left
 		});
 	};
 
@@ -171,7 +191,16 @@ function AudioRecorder({
 		audioPlayerRef.current.pause();
 		setAudioPlayerState("paused");
 	};
-	//Effects for timing
+
+	const updateWidth = () => {
+		setWindowWidth(window.innerWidth * 0.2)
+	}
+
+	React.useEffect(() => {
+		window.addEventListener("resize", updateWidth);
+		return () => window.removeEventListener("resize", updateWidth);
+	});
+
 	useEffect(() => {
 		//Run on open
 		getStream();
@@ -295,21 +324,48 @@ function AudioRecorder({
 	if (type === "docked") {
 		if (mediaRecorder === undefined) {
 			return (
-				<div style={style} className={"container"}>
-					<h1 className={"error"}>{"Loading..."}</h1>
-				</div>
+				<h1 className={"icon"}>
+					<Loading fill={btnColor} />
+				</h1>
 			);
 		} else {
 			if (mode === "recording") {
 				return (
 					<div style={style} className={"container"}>
-						<h1 className={"error"}>{"WIP"}</h1>
+						{playback ? (
+							<button
+								className={"icon"}
+								onClick={handleChangeMode}
+							>
+								<Mode fill={btnColor} />
+							</button>
+						) : null}
+						<button className={"icon"} onClick={handlePausePlay}>
+							<PausePlay fill={btnColor} />
+						</button>
+							{stream ? <AudioAnalyser width = {windowWidth} audio={stream} /> : null}
+						<button className={"icon"} onClick={handleStopStart}>
+							<StopReset fill={btnColor} />
+						</button>
 					</div>
 				);
 			} else {
 				return (
 					<div style={style} className={"container"}>
-						<h1 className={"error"}>{"WIP"}</h1>
+						{playback ? (
+							<button
+								className={"icon"}
+								onClick={handleChangeMode}
+							>
+								<Mode fill={btnColor} />
+							</button>
+						) : null}
+						<button className={"icon"} onClick={handlePausePlay}>
+							<PausePlay fill={btnColor} />
+						</button>
+						<button className={"icon"} onClick={handleStopStart}>
+							<StopReset fill={btnColor} />
+						</button>
 					</div>
 				);
 			}
@@ -327,13 +383,13 @@ function AudioRecorder({
 			if (mode === "recording") {
 				return (
 					<div style={style} className={"container"}>
-						<h1 className={"error"}>{"WIP"}</h1>
+						<h1 style={{ color:btnColor }} className={"error"}>{"WIP"}</h1>
 					</div>
 				);
 			} else {
 				return (
 					<div style={style} className={"container"}>
-						<h1 className={"error"}>{"WIP"}</h1>
+						<h1 style={{ color:btnColor }} className={"error"}>{"WIP"}</h1>
 					</div>
 				);
 			}
@@ -341,7 +397,7 @@ function AudioRecorder({
 	} else if (type === "small") {
 		if (mediaRecorder === undefined) {
 			return (
-				<div style={style} className={"icon"} className={"container"}>
+				<div style={style} className={"container"}>
 					<h1 className={"icon"}>
 						<Loading fill={btnColor} />
 					</h1>
@@ -378,7 +434,10 @@ function AudioRecorder({
 								<Mode fill={btnColor} />
 							</button>
 						) : null}
-						<h1 className={"error"}>
+						<h1
+							style={{ color: btnColor }}
+							className={"audio-error"}
+						>
 							{"No Audio"}
 							<br />
 							{"Recored"}

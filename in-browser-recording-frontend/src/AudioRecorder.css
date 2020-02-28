@@ -1,14 +1,15 @@
 .container {
-    height: 70px;
+    display: inline-block;
+    min-height: 70px;
+    max-height: 140px;
     min-width: 70px;
-    max-width: 210px;
 }
 
 .icon {
     display: inline-block;
     text-align: center;
     vertical-align: middle;
-    margin: 10px 10px;
+    margin: 10px;
     padding: 0;
     border: none;
     background: none;
@@ -18,18 +19,26 @@
 
 .error {
     display: inline-block;
+    vertical-align: middle;
     font-size: medium;
     color: rgb(114, 121, 133);
-    margin: 0px;
-    padding: 10px;
+    width: 120px;
+    height: 50px;
+    margin: 10px;
+}
+
+.audio-error {
+    display: inline-block;
+    vertical-align: middle;
+    font-size: medium;
+    color: rgb(114, 121, 133);
+    width: 120px;
+    height: 50px;
+    margin: 10px;
 }
 
 .svg-icon path {
     transition-duration: 0.2s;
-}
-
-.svg-icon:hover path {    
-    fill: rgb(141, 147, 156);
 }
 
 .loading-icon {
