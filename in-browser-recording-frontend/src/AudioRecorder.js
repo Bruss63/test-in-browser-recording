@@ -196,7 +196,7 @@ function AudioRecorder({
 		setWindowWidth(window.innerWidth * 0.2)
 	}
 
-	React.useEffect(() => {
+	useEffect(() => {
 		window.addEventListener("resize", updateWidth);
 		return () => window.removeEventListener("resize", updateWidth);
 	});
