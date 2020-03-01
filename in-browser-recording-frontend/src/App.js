@@ -1,5 +1,5 @@
 import React from "react";
-import AudioRecorder from "./AudioRecorder.js";
+import AudioRecorder from "./AudioRecorderSrc/AudioRecorder.js";
 import "./App.css";
 import { clientDownload, S3UploadSinglePart } from "./Modules/Networking";
 
@@ -23,7 +23,7 @@ function App() {
 	return (
 		<div className="App">
 			<h1>{"App"}</h1>
-			<AudioRecorder onFileReady={handleFile} />
+			<AudioRecorder type="docked" onFileReady={handleFile} />
 		</div>
 	);
 }
