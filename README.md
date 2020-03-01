@@ -7,8 +7,12 @@ Properties involved in the elements aesthetics
 ```
 type, 
 Change complexity modes of the recorder.
-compact: The simplest version of the recorder,  has one button input to begin a recording,  stop a recording and reset a recording.
-small: The smallest version that includes all features,  it includes both pause and play buttons,  stop and reset and a mode switching button to move between recording and playback modes  (**Once Playback is Implemented**) The Default mode is compact.
+compact: The simplest version of the recorder,  
+has one button input to begin a recording,  
+stop a recording and reset a recording.
+small: The smallest version that includes all features,  it includes both pause and play buttons,  
+stop and reset and a mode switching button to move between recording and playback modes  
+(**Once Playback is Implemented**) The Default mode is compact.
 ```
 ```
 shape,
