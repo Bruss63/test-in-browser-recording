@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./AudioRecorder.css";
+//Icons
 import Pause from "./Icons/PauseIcon";
 import Play from "./Icons/PlayIcon";
 import Stop from "./Icons/StopIcon";
@@ -7,22 +8,27 @@ import Playback from "./Icons/PlaybackIcon";
 import Mic from "./Icons/MicIcon";
 import Reset from "./Icons/UndoIcon";
 import Loading from "./Icons/LoadingIcon";
+//Modules
 import AudioAnalyser from "./Modules/AudioAnalyser";
+let toWav = require('audiobuffer-to-wav')
+
+//ogg_opus or flac
 
 function AudioRecorder({
 	onFileReady /*File Callback to Parent*/,
 	type = "compact" /*Changes Type of Recorder*/,
-	shape = "circular" /*Changes Shape of Edges, No Current Use*/,
+	shape = "circular" /*Changes Shape of Edges*/,
 	backgroundColor = "rgb(65, 64, 77)" /*Colour of Background*/,
 	btnColor = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
 	display = "inline-block" /*Change Display of Container*/, 
 	playback = false /*Enables and Disables Playback Function !!!Not Finished!!!*/,
-	chunkSize = 60000 /*Size of recorded Blobs*/,
+	chunkSize = 100 /*Size of recorded Blobs*/,
 	fileType = "webm" /*Specify File Type*/
 }) {
 	//Settings
 	const constraints = { audio: true, video: false };
 	//States
+	const [arrayBuffer, setArrayBuffer] = useState(null);
 	const [recordedChunks, setRecordedChunks] = useState([]);
 	const [mediaRecorder, setMediaRecorder] = useState(undefined);
 	const [mediaRecorderState, setMediaRecorderState] = useState("inactive");
@@ -48,10 +54,18 @@ function AudioRecorder({
 		console.log({ message: "Attempting Creation of Recorder" });
 		//Check if stream is avalible yet
 		if (stream !== undefined) {
+			let opt = {
+				mimeType: `audio/${fileType}`,
+				audioBitsPerSecond: 128000
+			};
+			if (fileType === "wav") {
+				opt = {
+					mimeType: `audio/webm`,
+					audioBitsPerSecond:128000
+				}
+			}
 			setMediaRecorder(
-				new window.MediaRecorder(stream, {
-					mimeType: `audio/${fileType}`
-				})
+				new window.MediaRecorder(stream, opt)
 			);
 			console.log({ message: "Found Stream!!!" });
 		} else {
@@ -63,7 +77,7 @@ function AudioRecorder({
 		console.log({ message: "Attempting Recorder Setup" });
 		if (mediaRecorder !== undefined) {
 			//Add listeners to recorder events
-			console.log({ message: "Found Recorder!!!" });
+			console.log({ message: "Found Recorder!!!", recorder:mediaRecorder });
 			mediaRecorder.ondataavailable = event => {
 				storeNewRecordedChunk(event.data);
 			};
@@ -78,10 +92,31 @@ function AudioRecorder({
 	const storeNewRecordedChunk = data => {
 		if (data && data.size > 0) {
 			console.log({ message: "Data Valid Attempting Storage" });
-			let array = recordedChunks;
-			array.push(data);
-			setRecordedChunks(array);
-			console.log(recordedChunks);
+			data.arrayBuffer().then(buffer => {				
+				if (fileType === "wav") {
+					console.log(buffer);
+					// let maxLen = Math.floor(buffer.byteLength / 4) * 4;
+					// const sliceBuffer = buffer.slice(0, maxLen);
+					// const arr = new Float32Array(sliceBuffer);
+					// const audioBuffer = new AudioBuffer({
+					// 	length: 0.1 * (16000 * 1),
+					// 	numberOfChannels: 1,
+					// 	sampleRate: 16000
+					// });
+					// audioBuffer.copyToChannel(arr, 0);
+					let wav = [new DataView(buffer)];
+					console.log(wav)
+					const wavBlob = new Blob(wav, {type: `audio/${fileType}`});
+					setRecordedChunks([...recordedChunks, wavBlob]);
+					
+				}
+							
+			})		
+			if (fileType !== "wav") {
+				setRecordedChunks([...recordedChunks, data]);
+			}	
+			
+			console.log({recordedChunks});
 		} else {
 			console.log({ message: "Error with Data!!!" });
 		}
@@ -117,7 +152,6 @@ function AudioRecorder({
 		} else if (shape === "rounded") {
 			borderRadius = "15px";
 		}
-
 		if (type === "docked") {
 			width = "100%"
 			height = "70px"
@@ -125,8 +159,6 @@ function AudioRecorder({
 			bottom = "0"
 			left = "0"
 			borderRadius = "0px"
-
-
 		} else if (type === "large") {
 			width = "210px";
 			height = "140px";
@@ -176,10 +208,11 @@ function AudioRecorder({
 	};
 
 	const resetRecording = () => {
-		console.log({ message: "Reseting Recording" });
-		setMediaRecorderState("inactive");
+		console.log({ message: "Reseting Recording" });		
 		setRecordedChunks([]);
+		setMediaRecorderState("inactive");
 		setFile(undefined);
+		
 	};
 	//Playback Functions
 	const startPlayback = () => {
