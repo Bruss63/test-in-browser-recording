@@ -13,19 +13,6 @@ import AudioAnalyser from "./Modules/AudioAnalyser";
 
 //ogg_opus or flac
 
-function floatTo16BitPCM(output, offset, input) {
-	for (var i = 0; i < input.length; i++, offset += 2) {
-		var s = Math.max(-1, Math.min(1, input[i]));
-		output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-	}
-}
-
-function writeString(view, offset, string) {
-	for (var i = 0; i < string.length; i++) {
-		view.setUint8(offset + i, string.charCodeAt(i));
-	}
-}
-
 function AudioRecorder({
 	onFileReady /*File Callback to Parent*/,
 	type = "compact" /*Changes Type of Recorder*/,
@@ -120,31 +107,9 @@ function AudioRecorder({
 					const sliceBuffer = buffer.slice(0, maxLen);					
 					const buffer32 = new Float32Array(sliceBuffer);
 					let downsampledBuffer = downsampleBuffer(buffer32, 16000);
-					console.log(downsampledBuffer)
-					// let sampleRate = 16000;
-					// let channels = 1;
-					// let dataSize = channels * sampleRate * 2;
-
-					// let wav = new DataView(buffer);
-
-					// writeString(wav, 0, "RIFF");
-					// wav.setUint32(4, 32 + dataSize, true);
-					// writeString(wav, 8, "WAVE");
-					// writeString(wav, 12, "fmt ");
-					// wav.setUint32(16, 16, true);
-					// wav.setUint16(20, 1, true);
-					// wav.setUint16(22, channels, true);
-					// wav.setUint32(24, sampleRate, true);
-					// wav.setUint32(28, sampleRate * 2, true);
-					// wav.setUint16(32, 2, true);
-					// wav.setUint16(34, 16, true);
-					// writeString(wav, 36, "data");
-					// wav.setUint32(40, dataSize * 2, true);
-					// floatTo16BitPCM(wav, 44, buffer);
-
-					// console.log(wav)
-					// const wavBlob = new Blob(wav, {type: `audio/${fileType}`});
-					// setRecordedChunks([...recordedChunks, wavBlob]);
+					let wav = encodeWav(downsampledBuffer)
+					const wavBlob = new Blob(wav, {type: `audio/${fileType}`});
+					setRecordedChunks([...recordedChunks, wavBlob]);
 					
 				}
 							
@@ -186,9 +151,41 @@ function AudioRecorder({
 		}
 		return downsampledBuffer;
 	}
+
+	const floatTo16BitPCM = (output, offset, input) => {
+		for (var i = 0; i < input.length; i++, offset += 2) {
+			var s = Math.max(-1, Math.min(1, input[i]));
+			output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+		}
+	}
+
+	const writeString = (view, offset, string) => {
+		for (var i = 0; i < string.length; i++) {
+			view.setUint8(offset + i, string.charCodeAt(i));
+		}
+	}
 	
 	const encodeWav = (samples) => {
-		let buffer = new ArrayBuffer(44 + samples.length)
+		let buffer = new ArrayBuffer(44 + samples.length * 2)
+		let view = new DataView(buffer)
+
+		writeString(view, 0, 'RIFF');
+		view.setUint32(4, 32 + samples.length)
+		view.setUint32(4, 32 + samples.length * 2, true);
+		writeString(view, 8, "WAVE");
+		writeString(view, 12, "fmt ");
+		view.setUint32(16, 16, true);
+		view.setUint16(20, 1, true);
+		view.setUint16(22, 1, true);
+		view.setUint32(24, sampleRate, true);
+		view.setUint32(28, sampleRate * 2, true);
+		view.setUint16(32, 2, true);
+		view.setUint16(34, 16, true);
+		writeString(view, 36, "data");
+		view.setUint32(40, samples.length * 2, true);
+		floatTo16BitPCM(view, 44, samples);
+
+		return view
 	}
 
 	const saveData = () => {
