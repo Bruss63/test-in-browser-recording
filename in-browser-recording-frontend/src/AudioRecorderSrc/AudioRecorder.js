@@ -21,13 +21,12 @@ function AudioRecorder({
 	btnColor = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
 	display = "inline-block" /*Change Display of Container*/, 
 	playback = false /*Enables and Disables Playback Function !!!Not Finished!!!*/,
-	chunkSize = 100 /*Size of recorded Blobs*/,
+	chunkSize = 10000 /*Size of recorded Blobs*/,
 	fileType = "webm" /*Specify File Type*/
 }) {
 	//Settings
 	const constraints = { audio: true, video: false };
 	//States
-	const [arrayBuffer, setArrayBuffer] = useState(null);
 	const [recordedChunks, setRecordedChunks] = useState([]);
 	const [mediaRecorder, setMediaRecorder] = useState(undefined);
 	const [sampleRate, setSampleRate] = useState(null);
@@ -101,21 +100,24 @@ function AudioRecorder({
 			console.log({ message: "Data Valid Attempting Storage" });
 			data.arrayBuffer().then(buffer => {				
 				if (fileType === "wav") {
-					console.log(buffer);
-
 					let maxLen = Math.floor(buffer.byteLength / 4) * 4;
-					const sliceBuffer = buffer.slice(0, maxLen);					
+					const sliceBuffer = buffer.slice(0, maxLen);
 					const buffer32 = new Float32Array(sliceBuffer);
 					let downsampledBuffer = downsampleBuffer(buffer32, 16000);
-					let wav = encodeWav(downsampledBuffer)
-					const wavBlob = new Blob(wav, {type: `audio/${fileType}`});
-					setRecordedChunks([...recordedChunks, wavBlob]);
-					
+					console.log(downsampledBuffer);
+					let encodedWav = encodeWav(downsampledBuffer)
+					const wavBlob = new Blob([encodedWav], {type: `audio/${fileType}`});
+					console.log(wavBlob)
+					let prevChunks = recordedChunks
+					prevChunks.push(wavBlob);
+					setRecordedChunks(prevChunks);			
 				}
 							
 			})		
 			if (fileType !== "wav") {
-				setRecordedChunks([...recordedChunks, data]);
+				let prevChunks = recordedChunks;
+				prevChunks.push(data);
+				setRecordedChunks(prevChunks);	
 			}	
 			
 			console.log({recordedChunks});
