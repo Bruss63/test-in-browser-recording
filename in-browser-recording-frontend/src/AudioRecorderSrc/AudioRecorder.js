@@ -10,9 +10,21 @@ import Reset from "./Icons/UndoIcon";
 import Loading from "./Icons/LoadingIcon";
 //Modules
 import AudioAnalyser from "./Modules/AudioAnalyser";
-let toWav = require('audiobuffer-to-wav')
 
 //ogg_opus or flac
+
+function floatTo16BitPCM(output, offset, input) {
+	for (var i = 0; i < input.length; i++, offset += 2) {
+		var s = Math.max(-1, Math.min(1, input[i]));
+		output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+	}
+}
+
+function writeString(view, offset, string) {
+	for (var i = 0; i < string.length; i++) {
+		view.setUint8(offset + i, string.charCodeAt(i));
+	}
+}
 
 function AudioRecorder({
 	onFileReady /*File Callback to Parent*/,
@@ -31,6 +43,7 @@ function AudioRecorder({
 	const [arrayBuffer, setArrayBuffer] = useState(null);
 	const [recordedChunks, setRecordedChunks] = useState([]);
 	const [mediaRecorder, setMediaRecorder] = useState(undefined);
+	const [sampleRate, setSampleRate] = useState(null);
 	const [mediaRecorderState, setMediaRecorderState] = useState("inactive");
 	const [audioPlayerState, setAudioPlayerState] = useState("paused");
 	const [stream, setStream] = useState(undefined);
@@ -54,6 +67,10 @@ function AudioRecorder({
 		console.log({ message: "Attempting Creation of Recorder" });
 		//Check if stream is avalible yet
 		if (stream !== undefined) {
+			let track = stream.getAudioTracks();
+			let settings = track[0].getSettings();
+			setSampleRate(settings.sampleRate);
+			
 			let opt = {
 				mimeType: `audio/${fileType}`,
 				audioBitsPerSecond: 128000
@@ -77,7 +94,10 @@ function AudioRecorder({
 		console.log({ message: "Attempting Recorder Setup" });
 		if (mediaRecorder !== undefined) {
 			//Add listeners to recorder events
-			console.log({ message: "Found Recorder!!!", recorder:mediaRecorder });
+			console.log({
+				message: "Found Recorder!!!",
+				recorder: mediaRecorder
+			});
 			mediaRecorder.ondataavailable = event => {
 				storeNewRecordedChunk(event.data);
 			};
@@ -95,19 +115,36 @@ function AudioRecorder({
 			data.arrayBuffer().then(buffer => {				
 				if (fileType === "wav") {
 					console.log(buffer);
-					// let maxLen = Math.floor(buffer.byteLength / 4) * 4;
-					// const sliceBuffer = buffer.slice(0, maxLen);
-					// const arr = new Float32Array(sliceBuffer);
-					// const audioBuffer = new AudioBuffer({
-					// 	length: 0.1 * (16000 * 1),
-					// 	numberOfChannels: 1,
-					// 	sampleRate: 16000
-					// });
-					// audioBuffer.copyToChannel(arr, 0);
-					let wav = [new DataView(buffer)];
-					console.log(wav)
-					const wavBlob = new Blob(wav, {type: `audio/${fileType}`});
-					setRecordedChunks([...recordedChunks, wavBlob]);
+
+					let maxLen = Math.floor(buffer.byteLength / 4) * 4;
+					const sliceBuffer = buffer.slice(0, maxLen);					
+					const buffer32 = new Float32Array(sliceBuffer);
+					let downsampledBuffer = downsampleBuffer(buffer32, 16000);
+					console.log(downsampledBuffer)
+					// let sampleRate = 16000;
+					// let channels = 1;
+					// let dataSize = channels * sampleRate * 2;
+
+					// let wav = new DataView(buffer);
+
+					// writeString(wav, 0, "RIFF");
+					// wav.setUint32(4, 32 + dataSize, true);
+					// writeString(wav, 8, "WAVE");
+					// writeString(wav, 12, "fmt ");
+					// wav.setUint32(16, 16, true);
+					// wav.setUint16(20, 1, true);
+					// wav.setUint16(22, channels, true);
+					// wav.setUint32(24, sampleRate, true);
+					// wav.setUint32(28, sampleRate * 2, true);
+					// wav.setUint16(32, 2, true);
+					// wav.setUint16(34, 16, true);
+					// writeString(wav, 36, "data");
+					// wav.setUint32(40, dataSize * 2, true);
+					// floatTo16BitPCM(wav, 44, buffer);
+
+					// console.log(wav)
+					// const wavBlob = new Blob(wav, {type: `audio/${fileType}`});
+					// setRecordedChunks([...recordedChunks, wavBlob]);
 					
 				}
 							
@@ -121,6 +158,38 @@ function AudioRecorder({
 			console.log({ message: "Error with Data!!!" });
 		}
 	};
+
+	const downsampleBuffer = (buffer, desiredSampleRate) => {
+		if (desiredSampleRate === sampleRate) {
+			return buffer
+		}
+		let sampleRatio = sampleRate / desiredSampleRate
+		let len = Math.round(buffer.length / sampleRatio)
+		let downsampledBuffer = new Float32Array(len)
+		let offsetResult = 0;
+		let offsetBuffer = 0;
+		while (offsetResult < downsampledBuffer.length) {
+			let nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRatio);
+			let accum = 0,
+				count = 0;
+			for (
+				let i = offsetBuffer;
+				i < nextOffsetBuffer && i < buffer.length;
+				i++
+			) {
+				accum += buffer[i];
+				count++;
+			}
+			downsampledBuffer[offsetResult] = accum / count;
+			offsetResult++;
+			offsetBuffer = nextOffsetBuffer;
+		}
+		return downsampledBuffer;
+	}
+	
+	const encodeWav = (samples) => {
+		let buffer = new ArrayBuffer(44 + samples.length)
+	}
 
 	const saveData = () => {
 		console.log({ message: "Data Save Attempted" });
