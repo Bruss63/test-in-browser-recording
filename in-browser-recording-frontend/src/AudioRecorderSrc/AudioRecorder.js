@@ -10,7 +10,7 @@ import Reset from "./Icons/UndoIcon";
 import Loading from "./Icons/LoadingIcon";
 //Modules
 import AudioAnalyser from "./Modules/AudioAnalyser";
-
+import { useWorker } from 'react-hooks-worker';
 //ogg_opus or flac
 
 function AudioRecorder({
@@ -29,10 +29,12 @@ function AudioRecorder({
 	//States
 	const [recordedChunks, setRecordedChunks] = useState([]);
 	const [mediaRecorder, setMediaRecorder] = useState(undefined);
-	const [sampleRate, setSampleRate] = useState(null);
+	const [audioCtx, setAudioCtx] = useState(undefined);
+	const [worker, setWorker] = useState(undefined);
 	const [mediaRecorderState, setMediaRecorderState] = useState("inactive");
 	const [audioPlayerState, setAudioPlayerState] = useState("paused");
-	const [stream, setStream] = useState(undefined);
+	const [source, setSource] = useState(undefined);
+	const [setupDone, setSetupDone] = useState(false);
 	const [file, setFile] = useState(undefined);
 	const [mode, setMode] = useState("recording");
 	const [style, setStyle] = useState({});
@@ -42,58 +44,45 @@ function AudioRecorder({
 	//Refs
 	const audioPlayerRef = useRef(null);
 	//Setup
-	const getStream = async () => {
+	const createWorker = () => new Worker('./recorder.worker',{ type: 'module' });
+
+	const beginSetup = () => {
+		setAudioCtx(
+			new AudioContext({
+				sampleRate: 16000
+			})
+		);
+		const { result, error } = useWorker(createWorker,{ command: 'config', config: { sampleRate: audioCtx.sampleRate } })
+	}
+
+	const getStream = () => {
 		//Ask for mic in browser
-		console.log({ message: "Attempting to Get Stream" });
-		setStream(await navigator.mediaDevices.getUserMedia(constraints));
+		if (audioCtx !== undefined) {
+			console.log(audioCtx)
+			console.log({ message: "Attempting to Get Stream" });
+			navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+				let source = audioCtx.createMediaStreamSource(stream);
+				setSource(source);
+			});
+		}		
 	};
 
-	const createRecorder = () => {
-		//Create Recorder
-		console.log({ message: "Attempting Creation of Recorder" });
-		//Check if stream is avalible yet
-		if (stream !== undefined) {
-			let track = stream.getAudioTracks();
-			let settings = track[0].getSettings();
-			setSampleRate(settings.sampleRate);
-			
-			let opt = {
-				mimeType: `audio/${fileType}`,
-				audioBitsPerSecond: 128000
+	const createProcessor = () => {
+		if (source !== undefined) {
+			console.log(source);
+			source.context.resume();
+			let node = source.context.createScriptProcessor(1024);
+			node.connect(source.context.destination);
+			node.onaudioprocess = event => {
+				console.log(event);
 			};
-			if (fileType === "wav") {
-				opt = {
-					mimeType: `audio/webm`,
-					audioBitsPerSecond:128000
-				}
-			}
-			setMediaRecorder(
-				new window.MediaRecorder(stream, opt)
-			);
-			console.log({ message: "Found Stream!!!" });
-		} else {
-			console.log({ message: "Could Not Evaluate Stream" });
+			setSetupDone(true);
+			console.log(setupDone)
+			console.log(node);
 		}
-	};
-	//Setup Recorder
-	const setupRecorder = () => {
-		console.log({ message: "Attempting Recorder Setup" });
-		if (mediaRecorder !== undefined) {
-			//Add listeners to recorder events
-			console.log({
-				message: "Found Recorder!!!",
-				recorder: mediaRecorder
-			});
-			mediaRecorder.ondataavailable = event => {
-				storeNewRecordedChunk(event.data);
-			};
-			mediaRecorder.onstop = () => {
-				saveData();
-			};
-		} else {
-			console.log({ message: "Could Not Find Recorder" });
-		}
-	};
+		
+	}
+	
 	//Recorder Data Handling Functions
 	const storeNewRecordedChunk = data => {
 		if (data && data.size > 0) {
@@ -127,10 +116,10 @@ function AudioRecorder({
 	};
 
 	const downsampleBuffer = (buffer, desiredSampleRate) => {
-		if (desiredSampleRate === sampleRate) {
+		if (desiredSampleRate === audioCtx.current.sampleRate) {
 			return buffer
 		}
-		let sampleRatio = sampleRate / desiredSampleRate
+		let sampleRatio = audioCtx.current.sampleRate / desiredSampleRate;
 		let len = Math.round(buffer.length / sampleRatio)
 		let downsampledBuffer = new Float32Array(len)
 		let offsetResult = 0;
@@ -179,8 +168,8 @@ function AudioRecorder({
 		view.setUint32(16, 16, true);
 		view.setUint16(20, 1, true);
 		view.setUint16(22, 1, true);
-		view.setUint32(24, sampleRate, true);
-		view.setUint32(28, sampleRate * 2, true);
+		view.setUint32(24, audioCtx.current.sampleRate, true);
+		view.setUint32(28, audioCtx.current.sampleRate * 2, true);
 		view.setUint16(32, 2, true);
 		view.setUint16(34, 16, true);
 		writeString(view, 36, "data");
@@ -304,19 +293,22 @@ function AudioRecorder({
 
 	useEffect(() => {
 		//Run on open
-		getStream();
+		beginSetup();
 		configureUI();
+		//Run on close
+		return () => {
+			audioCtx.close();
+		}
 	}, []);
 
 	useEffect(() => {
-		//Run on stream update
-		createRecorder();
-	}, [stream]);
-
+		getStream();
+	}, [audioCtx])
+	
 	useEffect(() => {
-		//Run on creation of media recorder
-		setupRecorder();
-	}, [mediaRecorder]);
+		//Run when source is ready
+		createProcessor();
+	}, [source])
 
 	useEffect(() => {
 		//Run when file is ready
@@ -423,7 +415,7 @@ function AudioRecorder({
 
 	//Rendering
 	if (type === "docked") {
-		if (mediaRecorder === undefined) {
+		if (setupDone === false) {
 			return (
 				<div style={style} className={"container"}>
 					<h1 className={"icon"}>
@@ -446,7 +438,7 @@ function AudioRecorder({
 						<button className={"icon"} onClick={handlePausePlay}>
 							<PausePlay fill={btnColor} />
 						</button>
-							{stream ? <AudioAnalyser width = {windowWidth} audio={stream} /> : null}
+							{source ? <AudioAnalyser width = {windowWidth} audio={source} /> : null}
 						<button className={"icon"} onClick={handleStopStart}>
 							<StopReset fill={btnColor} />
 						</button>
@@ -474,7 +466,7 @@ function AudioRecorder({
 			}
 		}
 	} else if (type === "large") {
-		if (mediaRecorder === undefined) {
+		if (setupDone === false) {
 			return (
 				<div style={style} className={"container"}>
 					<h1 className={"icon"}>
@@ -498,7 +490,7 @@ function AudioRecorder({
 			}
 		}
 	} else if (type === "small") {
-		if (mediaRecorder === undefined) {
+		if (setupDone === false) {
 			return (
 				<div style={style} className={"container"}>
 					<h1 className={"icon"}>
@@ -550,7 +542,7 @@ function AudioRecorder({
 			}
 		}
 	} else if (type === "compact") {
-		if (mediaRecorder === undefined) {
+		if (setupDone === false) {
 			return (
 				<div style={style} className={"container"}>
 					<h1 className={"icon"}>
