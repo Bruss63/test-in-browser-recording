@@ -11,8 +11,6 @@ import Loading from "./Icons/LoadingIcon";
 //Modules
 import AudioAnalyser from "./Modules/AudioAnalyser";
 
-//ogg_opus or flac
-
 function AudioRecorder({
 	onFileReady /*File Callback to Parent*/,
 	type = "compact" /*Changes Type of Recorder*/,
@@ -21,13 +19,12 @@ function AudioRecorder({
 	btnColor = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
 	display = "inline-block" /*Change Display of Container*/, 
 	playback = false /*Enables and Disables Playback Function !!!Not Finished!!!*/,
-	chunkSize = 10000 /*Size of recorded Blobs*/,
+	chunkSize = 1000 /*Size of recorded Blobs*/,
 	fileType = "webm" /*Specify File Type*/
 }) {
-	//Settings
-	const constraints = { audio: true, video: false };
 	//States
 	const [recordedChunks, setRecordedChunks] = useState([]);
+	const recLen = useRef(0)
 	const [mediaRecorder, setMediaRecorder] = useState(undefined);
 	const [sampleRate, setSampleRate] = useState(null);
 	const [mediaRecorderState, setMediaRecorderState] = useState("inactive");
@@ -45,7 +42,12 @@ function AudioRecorder({
 	const getStream = async () => {
 		//Ask for mic in browser
 		console.log({ message: "Attempting to Get Stream" });
-		setStream(await navigator.mediaDevices.getUserMedia(constraints));
+		setStream(
+			await navigator.mediaDevices.getUserMedia({
+				audio: true,
+				video: false
+			})
+		);
 	};
 
 	const createRecorder = () => {
@@ -53,8 +55,11 @@ function AudioRecorder({
 		console.log({ message: "Attempting Creation of Recorder" });
 		//Check if stream is avalible yet
 		if (stream !== undefined) {
+			let supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
+			console.log(supportedConstraints)
 			let track = stream.getAudioTracks();
 			let settings = track[0].getSettings();
+			console.log(settings)
 			setSampleRate(settings.sampleRate);
 			
 			let opt = {
@@ -100,17 +105,22 @@ function AudioRecorder({
 			console.log({ message: "Data Valid Attempting Storage" });
 			data.arrayBuffer().then(buffer => {				
 				if (fileType === "wav") {
-					let maxLen = Math.floor(buffer.byteLength / 4) * 4;
-					const sliceBuffer = buffer.slice(0, maxLen);
-					const buffer32 = new Float32Array(sliceBuffer);
-					let downsampledBuffer = downsampleBuffer(buffer32, 16000);
-					console.log(downsampledBuffer);
-					let encodedWav = encodeWav(downsampledBuffer)
-					const wavBlob = new Blob([encodedWav], {type: `audio/${fileType}`});
-					console.log(wavBlob)
+					console.log(buffer)
+					let buffer16 = null
+					if (buffer.byteLength % 2 !== 0) {
+						console.log({message:'chunk 8bit, converting'})
+						let maxLen = Math.floor(buffer.byteLength / 2) * 2
+						let slice = buffer.slice(0,maxLen)
+						buffer16 = new Int16Array(slice)
+					}
+					else {
+						buffer16 = new Int16Array(buffer);
+					}
+					recLen.current = recLen.current + buffer16.length;					
 					let prevChunks = recordedChunks
-					prevChunks.push(wavBlob);
-					setRecordedChunks(prevChunks);			
+					prevChunks.push(buffer16);
+					setRecordedChunks(prevChunks);
+					console.log({ recordedChunks, recLen : recLen.current });
 				}
 							
 			})		
@@ -118,13 +128,24 @@ function AudioRecorder({
 				let prevChunks = recordedChunks;
 				prevChunks.push(data);
 				setRecordedChunks(prevChunks);	
+				console.log({ recordedChunks });
 			}	
 			
-			console.log({recordedChunks});
+			
 		} else {
 			console.log({ message: "Error with Data!!!" });
 		}
 	};
+
+	const mergeBuffer = (chunks, len) => {
+		let output = new Int16Array(len)
+		let offset = 0;
+		for (let i = 0; i< chunks.length; i++) {
+			output.set(chunks[i], offset);
+			offset += chunks[i].length;
+		}
+		return output
+	}
 
 	const downsampleBuffer = (buffer, desiredSampleRate) => {
 		if (desiredSampleRate === sampleRate) {
@@ -154,16 +175,15 @@ function AudioRecorder({
 		return downsampledBuffer;
 	}
 
-	const floatTo16BitPCM = (output, offset, input) => {
-		for (var i = 0; i < input.length; i++, offset += 2) {
-			var s = Math.max(-1, Math.min(1, input[i]));
-			output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-		}
-	}
-
 	const writeString = (view, offset, string) => {
 		for (var i = 0; i < string.length; i++) {
 			view.setUint8(offset + i, string.charCodeAt(i));
+		}
+	}
+
+	const writeData = (view, offset, samples) => {
+		for (let i = 0; i < samples.length; i++, offset += 2) {
+			view.setInt16(offset, samples[i], true);
 		}
 	}
 	
@@ -171,21 +191,29 @@ function AudioRecorder({
 		let buffer = new ArrayBuffer(44 + samples.length * 2)
 		let view = new DataView(buffer)
 
-		writeString(view, 0, 'RIFF');
-		view.setUint32(4, 32 + samples.length)
-		view.setUint32(4, 32 + samples.length * 2, true);
+		let outputSampleRate = 8000
+		let numChannels = 1;
+		let bitSize = 16;
+		let blockAlign = numChannels * bitSize/8
+		let chunkSize = samples.length * 2
+		let byteRate = outputSampleRate * blockAlign
+		console.log(byteRate)
+		
+		writeString(view, 0, "RIFF");
+		view.setUint32(4, 36 + chunkSize, true);
 		writeString(view, 8, "WAVE");
 		writeString(view, 12, "fmt ");
 		view.setUint32(16, 16, true);
 		view.setUint16(20, 1, true);
-		view.setUint16(22, 1, true);
-		view.setUint32(24, sampleRate, true);
-		view.setUint32(28, sampleRate * 2, true);
-		view.setUint16(32, 2, true);
-		view.setUint16(34, 16, true);
+		view.setUint16(22, numChannels, true);
+		view.setUint32(24, outputSampleRate, true);
+		view.setUint32(28, byteRate, true);
+		view.setUint16(32, blockAlign, true);
+		view.setUint16(34, bitSize, true);
 		writeString(view, 36, "data");
-		view.setUint32(40, samples.length * 2, true);
-		floatTo16BitPCM(view, 44, samples);
+		view.setUint32(40, chunkSize, true);
+		writeData(view, 44, samples)
+		
 
 		return view
 	}
@@ -197,12 +225,27 @@ function AudioRecorder({
 			mediaRecorder !== undefined &&
 			recordedChunks.length > 0
 		) {
-			console.log({ message: "Data Valid" });
-			setFile(
-				new File(recordedChunks, `RecordededFile.${fileType}`, {
-					type: `audio/${fileType}`
-				})
-			);
+			if (fileType === "webm") {
+				console.log({ message: "Data Valid, webm" });
+				setFile(
+					new File(recordedChunks, `RecordededFile.${fileType}`, {
+						type: `audio/${fileType}`
+					})
+				);
+			}
+			else {
+				console.log({ message: "Data Valid, wav" });
+				let mergedBuffers = mergeBuffer(recordedChunks,recLen.current)
+				// let downsampledBuffer = downsampleBuffer(mergedBuffers,16000)
+				// console.log(downsampledBuffer);
+				let encodedWav = encodeWav(mergedBuffers);
+				console.log(encodedWav)
+				setFile(
+					new File([encodedWav], `RecordededFile.${fileType}`, {
+						type: `audio/${fileType}`
+					})
+				);
+			}
 		} else {
 			console.log({ message: "Error Storing Data" });
 		}
@@ -277,7 +320,8 @@ function AudioRecorder({
 
 	const resetRecording = () => {
 		console.log({ message: "Reseting Recording" });		
-		setRecordedChunks([]);
+		let clear = [];
+		setRecordedChunks(clear);
 		setMediaRecorderState("inactive");
 		setFile(undefined);
 		
