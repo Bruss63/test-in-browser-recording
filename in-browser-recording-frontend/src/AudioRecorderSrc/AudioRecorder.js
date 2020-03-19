@@ -10,7 +10,7 @@ import Reset from "./Icons/UndoIcon";
 import Loading from "./Icons/LoadingIcon";
 //Modules
 import AudioAnalyser from "./Modules/AudioAnalyser";
-import { useWorker } from 'react-hooks-worker';
+import recorderWorker from "./recorderWorker.js"
 //ogg_opus or flac
 
 function AudioRecorder({
@@ -44,20 +44,32 @@ function AudioRecorder({
 	//Refs
 	const audioPlayerRef = useRef(null);
 	//Setup
-	const createWorker = () => new Worker('./recorder.worker',{ type: 'module' });
-
 	const beginSetup = () => {
 		setAudioCtx(
 			new AudioContext({
 				sampleRate: 16000
 			})
 		);
-		const { result, error } = useWorker(createWorker,{ command: 'config', config: { sampleRate: audioCtx.sampleRate } })
+		const worker = new Worker('./recorderWorker.js');
+		worker.onmessage = message => {
+			console.log({ workerResponse: "Worker Message", message });
+		}
+		worker.onerror = error => {
+			console.log({ workerResponse: "Worker Error", error });
+		}
+		setWorker(worker)
 	}
 
 	const getStream = () => {
 		//Ask for mic in browser
 		if (audioCtx !== undefined) {
+			console.log(worker)
+			worker.postMessage({
+				command: 'config',
+				config: {
+					sampleRate: audioCtx.sampleRate
+				}
+			});
 			console.log(audioCtx)
 			console.log({ message: "Attempting to Get Stream" });
 			navigator.mediaDevices.getUserMedia(constraints).then(stream => {
@@ -74,10 +86,9 @@ function AudioRecorder({
 			let node = source.context.createScriptProcessor(1024);
 			node.connect(source.context.destination);
 			node.onaudioprocess = event => {
-				console.log(event);
+				// console.log(event);
 			};
 			setSetupDone(true);
-			console.log(setupDone)
 			console.log(node);
 		}
 		
