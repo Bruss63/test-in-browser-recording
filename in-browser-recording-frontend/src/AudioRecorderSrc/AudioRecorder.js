@@ -86,7 +86,10 @@ function AudioRecorder({
 			source.context.resume();
 			let node = source.context.createScriptProcessor(1024);
 			node.connect(source.context.destination);
-			node.onaudioprocess = event => {
+			node.onaudioprocess = e => {
+				let left = e.inputBuffer.getChannelData(0);
+				let right = e.inputBuffer.getChannelData(1);
+				console.log({e, left, right})
 				worker.postMessage({
 					command: "probe",
 				});
