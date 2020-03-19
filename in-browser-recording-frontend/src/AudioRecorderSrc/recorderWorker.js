@@ -1,12 +1,17 @@
-// let recordingLength = 0;
-// let recordingBuffer = [];
-// let sampleRate = 16000;
-
-onmessage = e => {
-    console.log(e.data)
+export default () => {
+    let sampleRate = undefined;
+    onmessage = e => {
+        let data = e.data
+        switch(data.command) {
+            case 'config':
+                sampleRate = data.config.sampleRate
+                postMessage({message: 'configured'});
+                break;
+            case 'probe':
+                postMessage({message: `Sample Rate: ${sampleRate}`})
+        }
+        
+    };
+    
 }
 
-// const config = config => {
-//     sampleRate = config.sampleRate
-//     postMessage("Init")
-// }

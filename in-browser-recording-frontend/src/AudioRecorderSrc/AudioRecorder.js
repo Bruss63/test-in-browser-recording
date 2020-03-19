@@ -10,8 +10,9 @@ import Reset from "./Icons/UndoIcon";
 import Loading from "./Icons/LoadingIcon";
 //Modules
 import AudioAnalyser from "./Modules/AudioAnalyser";
-import recorderWorker from "./recorderWorker.js"
-//ogg_opus or flac
+//Worker Imports
+import recorderWorker from "./recorderWorker"
+import WebWorker from './workerSetup'
 
 function AudioRecorder({
 	onFileReady /*File Callback to Parent*/,
@@ -50,12 +51,12 @@ function AudioRecorder({
 				sampleRate: 16000
 			})
 		);
-		const worker = new Worker('./recorderWorker.js');
-		worker.onmessage = message => {
-			console.log({ workerResponse: "Worker Message", message });
+		const worker = new WebWorker(recorderWorker);
+		worker.onmessage = e => {
+			console.log({ workerResponse: "Worker Message", message: e.data.message });
 		}
-		worker.onerror = error => {
-			console.log({ workerResponse: "Worker Error", error });
+		worker.onerror = e => {
+			console.log({ workerResponse: "Worker Error", e });
 		}
 		setWorker(worker)
 	}
@@ -86,7 +87,9 @@ function AudioRecorder({
 			let node = source.context.createScriptProcessor(1024);
 			node.connect(source.context.destination);
 			node.onaudioprocess = event => {
-				// console.log(event);
+				worker.postMessage({
+					command: "probe",
+				});
 			};
 			setSetupDone(true);
 			console.log(node);
