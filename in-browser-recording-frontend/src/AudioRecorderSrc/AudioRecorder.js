@@ -22,17 +22,14 @@ function AudioRecorder({
 	btnColor = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
 	display = "inline-block" /*Change Display of Container*/, 
 	playback = false /*Enables and Disables Playback Function !!!Not Finished!!!*/,
-	chunkSize = 10000 /*Size of recorded Blobs*/,
 	fileType = "webm" /*Specify File Type*/
 }) {
 	//Settings
 	const constraints = { audio: true, video: false };
 	//States
-	const [recordedChunks, setRecordedChunks] = useState([]);
-	const [mediaRecorder, setMediaRecorder] = useState(undefined);
+	const [recording, setRecording] = useState(false);
 	const [audioCtx, setAudioCtx] = useState(undefined);
 	const [worker, setWorker] = useState(undefined);
-	const [mediaRecorderState, setMediaRecorderState] = useState("inactive");
 	const [audioPlayerState, setAudioPlayerState] = useState("paused");
 	const [source, setSource] = useState(undefined);
 	const [setupDone, setSetupDone] = useState(false);
@@ -44,6 +41,7 @@ function AudioRecorder({
 	);
 	//Refs
 	const audioPlayerRef = useRef(null);
+	const recordingRef = useRef(false);
 	//Setup
 	const beginSetup = () => {
 		setAudioCtx(
@@ -53,10 +51,14 @@ function AudioRecorder({
 		);
 		const worker = new WebWorker(recorderWorker);
 		worker.onmessage = e => {
-			console.log({ workerResponse: "Worker Message", message: e.data.message });
+			console.log({ responseType: "Worker Message", message: e.data.message });
+			if (e.data.payload) {
+				let payload = e.data.payload;
+				console.log(payload);
+			}			
 		}
 		worker.onerror = e => {
-			console.log({ workerResponse: "Worker Error", e });
+			console.log({ responseType: "Worker Error", e });
 		}
 		setWorker(worker)
 	}
@@ -64,13 +66,6 @@ function AudioRecorder({
 	const getStream = () => {
 		//Ask for mic in browser
 		if (audioCtx !== undefined) {
-			console.log(worker)
-			worker.postMessage({
-				command: 'config',
-				config: {
-					sampleRate: audioCtx.sampleRate
-				}
-			});
 			console.log(audioCtx)
 			console.log({ message: "Attempting to Get Stream" });
 			navigator.mediaDevices.getUserMedia(constraints).then(stream => {
@@ -84,134 +79,41 @@ function AudioRecorder({
 		if (source !== undefined) {
 			console.log(source);
 			source.context.resume();
-			let node = source.context.createScriptProcessor(1024);
+			let node = source.context.createScriptProcessor(1024,2,2);
+			source.connect(node)
 			node.connect(source.context.destination);
 			node.onaudioprocess = e => {
-				let left = e.inputBuffer.getChannelData(0);
-				let right = e.inputBuffer.getChannelData(1);
-				console.log({e, left, right})
-				worker.postMessage({
-					command: "probe",
-				});
-			};
-			setSetupDone(true);
-			console.log(node);
-		}
-		
-	}
-	
-	//Recorder Data Handling Functions
-	const storeNewRecordedChunk = data => {
-		if (data && data.size > 0) {
-			console.log({ message: "Data Valid Attempting Storage" });
-			data.arrayBuffer().then(buffer => {				
-				if (fileType === "wav") {
-					let maxLen = Math.floor(buffer.byteLength / 4) * 4;
-					const sliceBuffer = buffer.slice(0, maxLen);
-					const buffer32 = new Float32Array(sliceBuffer);
-					let downsampledBuffer = downsampleBuffer(buffer32, 16000);
-					console.log(downsampledBuffer);
-					let encodedWav = encodeWav(downsampledBuffer)
-					const wavBlob = new Blob([encodedWav], {type: `audio/${fileType}`});
-					console.log(wavBlob)
-					let prevChunks = recordedChunks
-					prevChunks.push(wavBlob);
-					setRecordedChunks(prevChunks);			
-				}
+				if (!recordingRef.current) {
+					console.log('blocking recording')
+					return;
+				} else {
+					let left = e.inputBuffer.getChannelData(0);
+					let right = e.inputBuffer.getChannelData(1);
+					worker.postMessage({
+						command: "record",
+						buffers: {
+							left,
+							right
+						}
+					});	
+				}	
 							
-			})		
-			if (fileType !== "wav") {
-				let prevChunks = recordedChunks;
-				prevChunks.push(data);
-				setRecordedChunks(prevChunks);	
-			}	
-			
-			console.log({recordedChunks});
-		} else {
-			console.log({ message: "Error with Data!!!" });
-		}
-	};
-
-	const downsampleBuffer = (buffer, desiredSampleRate) => {
-		if (desiredSampleRate === audioCtx.current.sampleRate) {
-			return buffer
-		}
-		let sampleRatio = audioCtx.current.sampleRate / desiredSampleRate;
-		let len = Math.round(buffer.length / sampleRatio)
-		let downsampledBuffer = new Float32Array(len)
-		let offsetResult = 0;
-		let offsetBuffer = 0;
-		while (offsetResult < downsampledBuffer.length) {
-			let nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRatio);
-			let accum = 0,
-				count = 0;
-			for (
-				let i = offsetBuffer;
-				i < nextOffsetBuffer && i < buffer.length;
-				i++
-			) {
-				accum += buffer[i];
-				count++;
-			}
-			downsampledBuffer[offsetResult] = accum / count;
-			offsetResult++;
-			offsetBuffer = nextOffsetBuffer;
-		}
-		return downsampledBuffer;
-	}
-
-	const floatTo16BitPCM = (output, offset, input) => {
-		for (var i = 0; i < input.length; i++, offset += 2) {
-			var s = Math.max(-1, Math.min(1, input[i]));
-			output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-		}
-	}
-
-	const writeString = (view, offset, string) => {
-		for (var i = 0; i < string.length; i++) {
-			view.setUint8(offset + i, string.charCodeAt(i));
-		}
-	}
-	
-	const encodeWav = (samples) => {
-		let buffer = new ArrayBuffer(44 + samples.length * 2)
-		let view = new DataView(buffer)
-
-		writeString(view, 0, 'RIFF');
-		view.setUint32(4, 32 + samples.length)
-		view.setUint32(4, 32 + samples.length * 2, true);
-		writeString(view, 8, "WAVE");
-		writeString(view, 12, "fmt ");
-		view.setUint32(16, 16, true);
-		view.setUint16(20, 1, true);
-		view.setUint16(22, 1, true);
-		view.setUint32(24, audioCtx.current.sampleRate, true);
-		view.setUint32(28, audioCtx.current.sampleRate * 2, true);
-		view.setUint16(32, 2, true);
-		view.setUint16(34, 16, true);
-		writeString(view, 36, "data");
-		view.setUint32(40, samples.length * 2, true);
-		floatTo16BitPCM(view, 44, samples);
-
-		return view
+			};
+			worker.postMessage({
+				command: "config",
+				config: {
+					sampleRate: audioCtx.sampleRate,
+					exportSampleRate: 16000,
+					numChannels: node.channelCount
+				}
+			});
+			console.log(node);
+			setSetupDone(true);			
+		}		
 	}
 
 	const saveData = () => {
-		console.log({ message: "Data Save Attempted" });
-		if (
-			mediaRecorderState === "inactive" &&
-			mediaRecorder !== undefined &&
-			recordedChunks.length > 0
-		) {
-			console.log({ message: "Data Valid" });
-			setFile(
-				new File(recordedChunks, `RecordededFile.${fileType}`, {
-					type: `audio/${fileType}`
-				})
-			);
-		} else {
-			console.log({ message: "Error Storing Data" });
-		}
+
 	};
 
 	const configureUI = () => {
@@ -259,32 +161,24 @@ function AudioRecorder({
 	//Recording Functions
 	const beginRecording = () => {
 		console.log({ message: "Beginning Recording" });
-		mediaRecorder.start(chunkSize);
-		setMediaRecorderState("recording");
+		setRecording(true);
 	};
 
 	const stopRecording = () => {
 		console.log({ message: "Stopping Recording" });
-		mediaRecorder.stop();
-		setMediaRecorderState("inactive");
+		setRecording(false);
 	};
 
 	const pauseRecording = () => {
 		console.log({ message: "Pausing Recording" });
-		mediaRecorder.pause();
-		setMediaRecorderState("paused");
 	};
 
 	const startRecording = () => {
 		console.log({ message: "Starting Recording" });
-		mediaRecorder.resume();
-		setMediaRecorderState("recording");
 	};
 
 	const resetRecording = () => {
 		console.log({ message: "Reseting Recording" });		
-		setRecordedChunks([]);
-		setMediaRecorderState("inactive");
 		setFile(undefined);
 		
 	};
@@ -307,6 +201,10 @@ function AudioRecorder({
 		window.addEventListener("resize", updateWidth);
 		return () => window.removeEventListener("resize", updateWidth);
 	});
+
+	useEffect(() => {
+		recordingRef.current = recording
+	},[recording])
 
 	useEffect(() => {
 		//Run on open
@@ -337,7 +235,7 @@ function AudioRecorder({
 
 	//Button handlers
 	const handleChangeMode = () => {
-		if (mediaRecorderState === "recording") {
+		if (recording === true) {
 			alert("please finish recording before changing modes");
 		} else {
 			if (mode === "playback") {
@@ -349,9 +247,9 @@ function AudioRecorder({
 	};
 
 	const handleCompactButton = () => {
-		if (mediaRecorderState === "inactive" && file === undefined) {
+		if (recording === false && file === undefined) {
 			beginRecording();
-		} else if (mediaRecorderState === "recording") {
+		} else if (recording === true) {
 			stopRecording();
 		} else {
 			resetRecording();
@@ -360,11 +258,11 @@ function AudioRecorder({
 
 	const handlePausePlay = () => {
 		if (mode === "recording") {
-			if (mediaRecorderState === "inactive") {
+			if (recording === false) {
 				beginRecording();
-			} else if (mediaRecorderState === "recording") {
+			} else if (recording === true) {
 				pauseRecording();
-			} else if (mediaRecorderState === "paused") {
+			} else if (recording === false) { // change this
 				startRecording();
 			}
 		} else {
@@ -377,7 +275,7 @@ function AudioRecorder({
 	};
 
 	const handleStopStart = () => {
-		if (mediaRecorderState !== "inactive") {
+		if (recording === true) {
 			stopRecording();
 		} else {
 			resetRecording();
@@ -397,9 +295,9 @@ function AudioRecorder({
 	};
 
 	const CompactButton = ({ fill }) => {
-		if (mediaRecorderState === "inactive" && file === undefined) {
+		if (recording === false && file === undefined) {
 			return <Play fill={fill} />;
-		} else if (mediaRecorderState === "recording") {
+		} else if (recording === true) {
 			return <Stop fill={fill} />;
 		} else {
 			return <Reset fill={fill} />;
@@ -408,7 +306,7 @@ function AudioRecorder({
 
 	const PausePlay = ({ fill }) => {
 		if (mode === "recording") {
-			if (mediaRecorderState === "recording") {
+			if (recording === true) {
 				return <Pause fill={fill} />;
 			} else {
 				return <Play fill={fill} />;
@@ -423,7 +321,7 @@ function AudioRecorder({
 	};
 
 	const StopReset = ({ fill }) => {
-		if (mediaRecorderState === "inactive") {
+		if (recording === false) {
 			return <Reset fill={fill} />;
 		} else {
 			return <Stop fill={fill} />;
