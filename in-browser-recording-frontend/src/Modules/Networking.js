@@ -1,11 +1,11 @@
 import axios from "axios";
 
-export function clientDownload(fileData, fileName) {
+export function clientDownload(file) {
 	console.log("Client Download Initiated");
-	const url = window.URL.createObjectURL(fileData);
+	const url = window.URL.createObjectURL(file);
 	const a = document.createElement("a");
 	a.href = url;
-	a.download = fileName;
+	a.download = `${file.name}.${file.type}`;
 	a.click();
 	console.log("Client Download Successful");
 }

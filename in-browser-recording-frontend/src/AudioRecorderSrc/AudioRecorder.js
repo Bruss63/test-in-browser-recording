@@ -10,6 +10,7 @@ import Reset from "./Icons/UndoIcon";
 import Loading from "./Icons/LoadingIcon";
 //Modules
 import AudioAnalyser from "./Modules/AudioAnalyser";
+import {blobToFile} from './Modules/Utilities.js'
 //Worker Imports
 import recorderWorker from "./recorderWorker"
 import WebWorker from './workerSetup'
@@ -22,7 +23,7 @@ function AudioRecorder({
 	btnColor = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
 	display = "inline-block" /*Change Display of Container*/, 
 	playback = false /*Enables and Disables Playback Function !!!Not Finished!!!*/,
-	fileType = "webm" /*Specify File Type*/
+	fileType = "audio/wav" /*Specify File Type*/
 }) {
 	//Settings
 	const constraints = { audio: true, video: false };
@@ -54,7 +55,12 @@ function AudioRecorder({
 			console.log({ responseType: "Worker Message", message: e.data.message });
 			if (e.data.payload) {
 				let payload = e.data.payload;
-				console.log(payload);
+				if (payload.type === 'wavExport') {
+					let blob = payload.data
+					let file = blobToFile(blob,'recording')
+					setFile(file)
+					console.log(file)
+				}
 			}			
 		}
 		worker.onerror = e => {
@@ -167,19 +173,28 @@ function AudioRecorder({
 	const stopRecording = () => {
 		console.log({ message: "Stopping Recording" });
 		setRecording(false);
+		worker.postMessage({
+			command: 'export',
+			type: fileType
+		})
 	};
 
 	const pauseRecording = () => {
 		console.log({ message: "Pausing Recording" });
+		setRecording(false);
 	};
 
 	const startRecording = () => {
 		console.log({ message: "Starting Recording" });
+		setRecording(true);
 	};
 
 	const resetRecording = () => {
 		console.log({ message: "Reseting Recording" });		
-		setFile(undefined);
+		setRecording(false);
+		worker.postMessage({
+			command:'clear'
+		})
 		
 	};
 	//Playback Functions

@@ -12,7 +12,7 @@ function App() {
 
 	const handleFile = file => {
 		if (download === true) {
-			clientDownload(file, file.name);
+			clientDownload(file);
 		}
 		if (s3Upload === true) {
 			S3UploadSinglePart(file, SIGNED_URL_ENDPOINT);
@@ -23,7 +23,7 @@ function App() {
 	return (
 		<div className="App">
 			<h1>{"App"}</h1>
-			<AudioRecorder fileType="wav" onFileReady={handleFile} />
+			<AudioRecorder fileType="wav"type={'small'}onFileReady={handleFile} />
 		</div>
 	);
 }
