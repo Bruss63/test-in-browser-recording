@@ -9,7 +9,7 @@ import Mic from "./Icons/MicIcon";
 import Reset from "./Icons/UndoIcon";
 import Loading from "./Icons/LoadingIcon";
 //Modules
-import AudioAnalyser from "./Modules/AudioAnalyser";
+import AudioAnalyser from './Modules/AudioAnalyser'
 import {blobToFile} from './Modules/Utilities.js'
 //Worker Imports
 import recorderWorker from "./recorderWorker"
@@ -23,18 +23,22 @@ function AudioRecorder({
 	btnColor = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
 	display = "inline-block" /*Change Display of Container*/, 
 	playback = false /*Enables and Disables Playback Function !!!Not Finished!!!*/,
-	fileType = "audio/wav" /*Specify File Type*/
+	fileType = "audio/wav", /*Specify File Type*/
+	bufferSize = 1024,
+	channelNumber = 2,
+	logging = {recorder: false, controls: false},
+	stream = false
 }) {
 	//Settings
 	const constraints = { audio: true, video: false };
 	//States
 	const [recording, setRecording] = useState(false);
+	const [started, setStarted] = useState(false);
 	const [audioCtx, setAudioCtx] = useState(undefined);
 	const [worker, setWorker] = useState(undefined);
 	const [audioPlayerState, setAudioPlayerState] = useState("paused");
 	const [source, setSource] = useState(undefined);
 	const [setupDone, setSetupDone] = useState(false);
-	const [file, setFile] = useState(undefined);
 	const [mode, setMode] = useState("recording");
 	const [style, setStyle] = useState({});
 	const [windowWidth, setWindowWidth] = useState(
@@ -43,6 +47,8 @@ function AudioRecorder({
 	//Refs
 	const audioPlayerRef = useRef(null);
 	const recordingRef = useRef(false);
+	const streamRef = useRef(undefined);
+	const loggingConfig = useRef(logging)
 	//Setup
 	const beginSetup = () => {
 		setAudioCtx(
@@ -52,19 +58,31 @@ function AudioRecorder({
 		);
 		const worker = new WebWorker(recorderWorker);
 		worker.onmessage = e => {
-			console.log({ responseType: "Worker Message", message: e.data.message });
+			if (loggingConfig.current.recorder === true) {
+				console.log({ responseType: "Worker Message", message: e.data.message });
+			}
+			
 			if (e.data.payload) {
 				let payload = e.data.payload;
 				if (payload.type === 'wavExport') {
 					let blob = payload.data
 					let file = blobToFile(blob,'recording')
-					setFile(file)
-					console.log(file)
+					onFileReady(file)
+					if (loggingConfig.current.recorder === true) {
+						console.log(file);
+					}
+					
 				}
-			}			
+				else if (payload.type === 'wavDataExport') {
+					onFileReady(payload.data);
+				}
+			}		
 		}
 		worker.onerror = e => {
-			console.log({ responseType: "Worker Error", e });
+			if (loggingConfig.current.recorder === true) {
+				console.log({ responseType: "Worker Error", e });
+			}
+			
 		}
 		setWorker(worker)
 	}
@@ -75,6 +93,7 @@ function AudioRecorder({
 			console.log(audioCtx)
 			console.log({ message: "Attempting to Get Stream" });
 			navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+				streamRef.current = stream			
 				let source = audioCtx.createMediaStreamSource(stream);
 				setSource(source);
 			});
@@ -85,23 +104,40 @@ function AudioRecorder({
 		if (source !== undefined) {
 			console.log(source);
 			source.context.resume();
-			let node = source.context.createScriptProcessor(1024,2,2);
+			let node = source.context.createScriptProcessor(
+				bufferSize,
+				channelNumber,
+				channelNumber
+			);
 			source.connect(node)
 			node.connect(source.context.destination);
 			node.onaudioprocess = e => {
 				if (!recordingRef.current) {
-					console.log('blocking recording')
+					if (loggingConfig.current.recorder === true) {
+						console.log('blocking recording')
+					}
+					
 					return;
 				} else {
+					let buffers = [];
 					let left = e.inputBuffer.getChannelData(0);
-					let right = e.inputBuffer.getChannelData(1);
+					buffers.push(left)
+					if (channelNumber === 2) {
+						let right = e.inputBuffer.getChannelData(1);
+						buffers.push(right)
+					}			
 					worker.postMessage({
 						command: "record",
 						buffers: {
-							left,
-							right
+							buffers
 						}
 					});	
+					if (stream === true) {
+						worker.postMessage({
+							command: 'exportWavData',
+							type: fileType
+						})
+					}
 				}	
 							
 			};
@@ -110,17 +146,14 @@ function AudioRecorder({
 				config: {
 					sampleRate: audioCtx.sampleRate,
 					exportSampleRate: 16000,
-					numChannels: node.channelCount
+					numChannels: node.channelCount,
+					logging: loggingConfig.current.recorder
 				}
 			});
 			console.log(node);
 			setSetupDone(true);			
 		}		
 	}
-
-	const saveData = () => {
-
-	};
 
 	const configureUI = () => {
 		let borderRadius = "0px";
@@ -168,15 +201,19 @@ function AudioRecorder({
 	const beginRecording = () => {
 		console.log({ message: "Beginning Recording" });
 		setRecording(true);
+		setStarted(true);
 	};
 
 	const stopRecording = () => {
 		console.log({ message: "Stopping Recording" });
 		setRecording(false);
-		worker.postMessage({
-			command: 'export',
-			type: fileType
-		})
+		if (stream === false) {
+			worker.postMessage({
+				command: "exportWavFile",
+				type: fileType
+			});
+		}
+		
 	};
 
 	const pauseRecording = () => {
@@ -192,11 +229,13 @@ function AudioRecorder({
 	const resetRecording = () => {
 		console.log({ message: "Reseting Recording" });		
 		setRecording(false);
+		setStarted(false);
 		worker.postMessage({
 			command:'clear'
 		})
 		
 	};
+
 	//Playback Functions
 	const startPlayback = () => {
 		audioPlayerRef.current.play();
@@ -213,15 +252,6 @@ function AudioRecorder({
 	}
 
 	useEffect(() => {
-		window.addEventListener("resize", updateWidth);
-		return () => window.removeEventListener("resize", updateWidth);
-	});
-
-	useEffect(() => {
-		recordingRef.current = recording
-	},[recording])
-
-	useEffect(() => {
 		//Run on open
 		beginSetup();
 		configureUI();
@@ -232,6 +262,15 @@ function AudioRecorder({
 	}, []);
 
 	useEffect(() => {
+		window.addEventListener("resize", updateWidth);
+		return () => window.removeEventListener("resize", updateWidth);
+	});
+
+	useEffect(() => {
+		recordingRef.current = recording;
+	}, [recording]);
+
+	useEffect(() => {
 		getStream();
 	}, [audioCtx])
 	
@@ -239,14 +278,6 @@ function AudioRecorder({
 		//Run when source is ready
 		createProcessor();
 	}, [source])
-
-	useEffect(() => {
-		//Run when file is ready
-		if (file !== undefined) {
-			console.log({ message: "Transfer to Parent Attempted" });
-			onFileReady(file);
-		}
-	}, [file, onFileReady]);
 
 	//Button handlers
 	const handleChangeMode = () => {
@@ -262,10 +293,10 @@ function AudioRecorder({
 	};
 
 	const handleCompactButton = () => {
-		if (recording === false && file === undefined) {
+		if (recording === false && started === false) {
 			beginRecording();
 		} else if (recording === true) {
-			stopRecording();
+			stopRecording();			
 		} else {
 			resetRecording();
 		}
@@ -289,7 +320,7 @@ function AudioRecorder({
 		}
 	};
 
-	const handleStopStart = () => {
+	const handleStopReset = () => {
 		if (recording === true) {
 			stopRecording();
 		} else {
@@ -304,13 +335,10 @@ function AudioRecorder({
 		} else if (mode === "playback") {
 			return <Mic fill={fill} />;
 		}
-		if (file !== undefined) {
-			audioPlayerRef.current.src = file;
-		}
 	};
 
 	const CompactButton = ({ fill }) => {
-		if (recording === false && file === undefined) {
+		if (recording === false && started === false) {
 			return <Play fill={fill} />;
 		} else if (recording === true) {
 			return <Stop fill={fill} />;
@@ -368,8 +396,8 @@ function AudioRecorder({
 						<button className={"icon"} onClick={handlePausePlay}>
 							<PausePlay fill={btnColor} />
 						</button>
-							{source ? <AudioAnalyser width = {windowWidth} audio={source} /> : null}
-						<button className={"icon"} onClick={handleStopStart}>
+							{source ? <AudioAnalyser width = {windowWidth} audio={streamRef.current} /> : null}
+						<button className={"icon"} onClick={handleStopReset}>
 							<StopReset fill={btnColor} />
 						</button>
 					</div>
@@ -388,7 +416,7 @@ function AudioRecorder({
 						<button className={"icon"} onClick={handlePausePlay}>
 							<PausePlay fill={btnColor} />
 						</button>
-						<button className={"icon"} onClick={handleStopStart}>
+						<button className={"icon"} onClick={handleStopReset}>
 							<StopReset fill={btnColor} />
 						</button>
 					</div>
@@ -443,7 +471,7 @@ function AudioRecorder({
 						<button className={"icon"} onClick={handlePausePlay}>
 							<PausePlay fill={btnColor} />
 						</button>
-						<button className={"icon"} onClick={handleStopStart}>
+						<button className={"icon"} onClick={handleStopReset}>
 							<StopReset fill={btnColor} />
 						</button>
 					</div>

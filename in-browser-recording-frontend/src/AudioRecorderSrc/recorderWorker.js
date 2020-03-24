@@ -15,14 +15,14 @@ export default () => {
             case 'config':
                 configure(data.config);
                 break;
-            case 'probe':
-                probe(data);
-                break;
             case 'record':
                 record(data.buffers);
                 break;
-            case 'export':
-                exportAudio(data.type);
+            case 'exportWavFile':
+                exportWavFile(data.type);
+                break;
+            case 'exportWavData':
+                exportWavData(data.type);
                 break;
             case 'getRawData':
                 getBuffers();
@@ -49,19 +49,20 @@ export default () => {
 			message: `configured, Sample Rate: ${exportSampleRate}, Number of Channels: ${numChannels},  Logging: ${logging}`
 		});
     };
-    
-    const probe = data => {
-        postMessage({ message: `Sample Rate: ${sampleRate}` });
-    }
 
     const record = inputBuffers => {
-        let leftBuffer = inputBuffers.left;
-        let rightBuffer = inputBuffers.right;
+        let leftBuffer = inputBuffers.buffers[0];
+        let rightBuffer;
+        if (numChannels === 2) {
+            rightBuffer = inputBuffers.buffers[1];
+        }       
         
         recordedBuffers[0].push(leftBuffer);
+
         if (numChannels === 2) {
             recordedBuffers[1].push(rightBuffer);
         }
+
         recordedLength += leftBuffer.length;
         if (logging === true) {
             console.log({ recordedBuffers, recordedLength });
@@ -70,7 +71,7 @@ export default () => {
         postMessage({ message: 'recording' });
     }
 
-    const exportAudio = type => {
+    const exportWavFile = type => {
         let mergedBuffers = [];
         for (let channel = 0; channel < numChannels; channel++) {
             mergedBuffers.push(
@@ -93,16 +94,48 @@ export default () => {
         }
 
         let view = encodeWav(interleavedBuffer)
-
-        let blob = new Blob([view], {type:type})
-        
+        let blob = new Blob([view], {type:type})        
         postMessage({
 			message: "Wav file exported",
 			payload: {
 				data: blob,
 				type: "wavExport"
 			}
-		});
+        });
+    }
+
+    const exportWavData = type => {
+        let mergedBuffers = [];
+		for (let channel = 0; channel < numChannels; channel++) {
+			mergedBuffers.push(
+				mergeBuffers(recordedBuffers[channel], recordedLength)
+			);
+		}
+		let downsampledBuffers = [];
+		for (let channel = 0; channel < numChannels; channel++) {
+			downsampledBuffers.push(
+				downsampleBuffer(mergedBuffers[channel], exportSampleRate)
+			);
+		}
+		let interleavedBuffer;
+		if (numChannels === 2) {
+			interleavedBuffer = interleave(mergedBuffers[0], mergedBuffers[1]);
+		} else {
+			interleavedBuffer = mergedBuffers[0];
+		}
+
+        let view = encodeData(interleavedBuffer)
+        let buffer16 = new Int16Array(view.buffer);
+        let blob = new Blob([view], { type: type });
+
+        postMessage({
+            message: "Wav Data exported",
+            payload: {
+                data: buffer16,
+                type: "wavDataExport"
+            }
+        });	
+        clear();
     }
 
     const downsampleBuffer = (buffer, desiredSampleRate) => {
@@ -190,6 +223,15 @@ export default () => {
 
 		return view;
 	};
+
+    const encodeData = samples => {
+        let buffer = new ArrayBuffer(samples.length * 2);
+        let view = new DataView(buffer);
+
+        floatTo16BitPCM(view, 0, samples);
+
+        return view;
+    };
 
     const getBuffers = () => {
         let buffers = [];
