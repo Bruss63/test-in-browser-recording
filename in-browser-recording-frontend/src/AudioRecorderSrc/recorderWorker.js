@@ -94,7 +94,8 @@ export default () => {
         }
 
         let view = encodeWav(interleavedBuffer)
-        let blob = new Blob([view], {type:type})        
+        let blob = new Blob([view], {type:type})
+        
         postMessage({
 			message: "Wav file exported",
 			payload: {
@@ -126,7 +127,7 @@ export default () => {
 
         let view = encodeData(interleavedBuffer)
         let buffer16 = new Int16Array(view.buffer);
-        let blob = new Blob([view], { type: type });
+        // let blob = new Blob([view], { type: type });
 
         postMessage({
             message: "Wav Data exported",
