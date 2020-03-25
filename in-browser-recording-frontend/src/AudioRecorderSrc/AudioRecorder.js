@@ -30,7 +30,7 @@ function AudioRecorder({
 	stream = false
 }) {
 	//States
-
+	const constraints = { audio: true, video: false };
 	const [recording, setRecording] = useState(false);
 	const [started, setStarted] = useState(false);
 	const [audioCtx, setAudioCtx] = useState(undefined);
