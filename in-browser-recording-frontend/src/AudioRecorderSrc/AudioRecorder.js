@@ -29,9 +29,8 @@ function AudioRecorder({
 	logging = {recorder: false, controls: false},
 	stream = false
 }) {
-	//Settings
-	const constraints = { audio: true, video: false };
 	//States
+
 	const [recording, setRecording] = useState(false);
 	const [started, setStarted] = useState(false);
 	const [audioCtx, setAudioCtx] = useState(undefined);
@@ -232,8 +231,7 @@ function AudioRecorder({
 		setStarted(false);
 		worker.postMessage({
 			command:'clear'
-		})
-		
+		})		
 	};
 
 	//Playback Functions
