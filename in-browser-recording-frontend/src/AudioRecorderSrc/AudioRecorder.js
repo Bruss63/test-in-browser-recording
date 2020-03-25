@@ -9,7 +9,11 @@ import Mic from "./Icons/MicIcon";
 import Reset from "./Icons/UndoIcon";
 import Loading from "./Icons/LoadingIcon";
 //Modules
-import AudioAnalyser from "./Modules/AudioAnalyser";
+import AudioAnalyser from './Modules/AudioAnalyser'
+import {blobToFile} from './Modules/Utilities.js'
+//Worker Imports
+import recorderWorker from "./recorderWorker"
+import WebWorker from './workerSetup'
 
 function AudioRecorder({
 	onFileReady /*File Callback to Parent*/,
@@ -19,18 +23,21 @@ function AudioRecorder({
 	btnColor = "rgb(114, 121, 133)" /*Colour of Interface Buttons*/,
 	display = "inline-block" /*Change Display of Container*/, 
 	playback = false /*Enables and Disables Playback Function !!!Not Finished!!!*/,
-	chunkSize = 1000 /*Size of recorded Blobs*/,
-	fileType = "webm" /*Specify File Type*/
+	fileType = "audio/wav", /*Specify File Type*/
+	bufferSize = 1024,
+	channelNumber = 2,
+	logging = {recorder: false, controls: false},
+	stream = false
 }) {
 	//States
-	const [recordedChunks, setRecordedChunks] = useState([]);
-	const recLen = useRef(0)
-	const [mediaRecorder, setMediaRecorder] = useState(undefined);
-	const [sampleRate, setSampleRate] = useState(null);
-	const [mediaRecorderState, setMediaRecorderState] = useState("inactive");
+
+	const [recording, setRecording] = useState(false);
+	const [started, setStarted] = useState(false);
+	const [audioCtx, setAudioCtx] = useState(undefined);
+	const [worker, setWorker] = useState(undefined);
 	const [audioPlayerState, setAudioPlayerState] = useState("paused");
-	const [stream, setStream] = useState(undefined);
-	const [file, setFile] = useState(undefined);
+	const [source, setSource] = useState(undefined);
+	const [setupDone, setSetupDone] = useState(false);
 	const [mode, setMode] = useState("recording");
 	const [style, setStyle] = useState({});
 	const [windowWidth, setWindowWidth] = useState(
@@ -38,218 +45,114 @@ function AudioRecorder({
 	);
 	//Refs
 	const audioPlayerRef = useRef(null);
+	const recordingRef = useRef(false);
+	const streamRef = useRef(undefined);
+	const loggingConfig = useRef(logging)
 	//Setup
-	const getStream = async () => {
-		//Ask for mic in browser
-		console.log({ message: "Attempting to Get Stream" });
-		setStream(
-			await navigator.mediaDevices.getUserMedia({
-				audio: true,
-				video: false
+	const beginSetup = () => {
+		setAudioCtx(
+			new AudioContext({
+				sampleRate: 16000
 			})
 		);
-	};
-
-	const createRecorder = () => {
-		//Create Recorder
-		console.log({ message: "Attempting Creation of Recorder" });
-		//Check if stream is avalible yet
-		if (stream !== undefined) {
-			let supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
-			console.log(supportedConstraints)
-			let track = stream.getAudioTracks();
-			let settings = track[0].getSettings();
-			console.log(settings)
-			setSampleRate(settings.sampleRate);
-			
-			let opt = {
-				mimeType: `audio/${fileType}`,
-				audioBitsPerSecond: 128000
-			};
-			if (fileType === "wav") {
-				opt = {
-					mimeType: `audio/webm`,
-					audioBitsPerSecond:128000
-				}
+		const worker = new WebWorker(recorderWorker);
+		worker.onmessage = e => {
+			if (loggingConfig.current.recorder === true) {
+				console.log({ responseType: "Worker Message", message: e.data.message });
 			}
-			setMediaRecorder(
-				new window.MediaRecorder(stream, opt)
-			);
-			console.log({ message: "Found Stream!!!" });
-		} else {
-			console.log({ message: "Could Not Evaluate Stream" });
+			
+			if (e.data.payload) {
+				let payload = e.data.payload;
+				if (payload.type === 'wavExport') {
+					let blob = payload.data
+					let file = blobToFile(blob,'recording')
+					onFileReady(file)
+					if (loggingConfig.current.recorder === true) {
+						console.log(file);
+					}
+					
+				}
+				else if (payload.type === 'wavDataExport') {
+					onFileReady(payload.data);
+				}
+			}		
 		}
-	};
-	//Setup Recorder
-	const setupRecorder = () => {
-		console.log({ message: "Attempting Recorder Setup" });
-		if (mediaRecorder !== undefined) {
-			//Add listeners to recorder events
-			console.log({
-				message: "Found Recorder!!!",
-				recorder: mediaRecorder
+		worker.onerror = e => {
+			if (loggingConfig.current.recorder === true) {
+				console.log({ responseType: "Worker Error", e });
+			}
+			
+		}
+		setWorker(worker)
+	}
+
+	const getStream = () => {
+		//Ask for mic in browser
+		if (audioCtx !== undefined) {
+			console.log(audioCtx)
+			console.log({ message: "Attempting to Get Stream" });
+			navigator.mediaDevices.getUserMedia(constraints).then(stream => {
+				streamRef.current = stream			
+				let source = audioCtx.createMediaStreamSource(stream);
+				setSource(source);
 			});
-			mediaRecorder.ondataavailable = event => {
-				storeNewRecordedChunk(event.data);
-			};
-			mediaRecorder.onstop = () => {
-				saveData();
-			};
-		} else {
-			console.log({ message: "Could Not Find Recorder" });
-		}
+		}		
 	};
-	//Recorder Data Handling Functions
-	const storeNewRecordedChunk = data => {
-		if (data && data.size > 0) {
-			console.log({ message: "Data Valid Attempting Storage" });
-			data.arrayBuffer().then(buffer => {				
-				if (fileType === "wav") {
-					console.log(buffer)
-					let buffer16 = null
-					if (buffer.byteLength % 2 !== 0) {
-						console.log({message:'chunk 8bit, converting'})
-						let maxLen = Math.floor(buffer.byteLength / 2) * 2
-						let slice = buffer.slice(0,maxLen)
-						buffer16 = new Int16Array(slice)
+
+	const createProcessor = () => {
+		if (source !== undefined) {
+			console.log(source);
+			source.context.resume();
+			let node = source.context.createScriptProcessor(
+				bufferSize,
+				channelNumber,
+				channelNumber
+			);
+			source.connect(node)
+			node.connect(source.context.destination);
+			node.onaudioprocess = e => {
+				if (!recordingRef.current) {
+					if (loggingConfig.current.recorder === true) {
+						console.log('blocking recording')
 					}
-					else {
-						buffer16 = new Int16Array(buffer);
+					
+					return;
+				} else {
+					let buffers = [];
+					let left = e.inputBuffer.getChannelData(0);
+					buffers.push(left)
+					if (channelNumber === 2) {
+						let right = e.inputBuffer.getChannelData(1);
+						buffers.push(right)
+					}			
+					worker.postMessage({
+						command: "record",
+						buffers: {
+							buffers
+						}
+					});	
+					if (stream === true) {
+						worker.postMessage({
+							command: 'exportWavData',
+							type: fileType
+						})
 					}
-					recLen.current = recLen.current + buffer16.length;					
-					let prevChunks = recordedChunks
-					prevChunks.push(buffer16);
-					setRecordedChunks(prevChunks);
-					console.log({ recordedChunks, recLen : recLen.current });
-				}
+				}	
 							
-			})		
-			if (fileType !== "wav") {
-				let prevChunks = recordedChunks;
-				prevChunks.push(data);
-				setRecordedChunks(prevChunks);	
-				console.log({ recordedChunks });
-			}	
-			
-			
-		} else {
-			console.log({ message: "Error with Data!!!" });
-		}
-	};
-
-	const mergeBuffer = (chunks, len) => {
-		let output = new Int16Array(len)
-		let offset = 0;
-		for (let i = 0; i< chunks.length; i++) {
-			output.set(chunks[i], offset);
-			offset += chunks[i].length;
-		}
-		return output
+			};
+			worker.postMessage({
+				command: "config",
+				config: {
+					sampleRate: audioCtx.sampleRate,
+					exportSampleRate: 16000,
+					numChannels: node.channelCount,
+					logging: loggingConfig.current.recorder
+				}
+			});
+			console.log(node);
+			setSetupDone(true);			
+		}		
 	}
-
-	const downsampleBuffer = (buffer, desiredSampleRate) => {
-		if (desiredSampleRate === sampleRate) {
-			return buffer
-		}
-		let sampleRatio = sampleRate / desiredSampleRate
-		let len = Math.round(buffer.length / sampleRatio)
-		let downsampledBuffer = new Float32Array(len)
-		let offsetResult = 0;
-		let offsetBuffer = 0;
-		while (offsetResult < downsampledBuffer.length) {
-			let nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRatio);
-			let accum = 0,
-				count = 0;
-			for (
-				let i = offsetBuffer;
-				i < nextOffsetBuffer && i < buffer.length;
-				i++
-			) {
-				accum += buffer[i];
-				count++;
-			}
-			downsampledBuffer[offsetResult] = accum / count;
-			offsetResult++;
-			offsetBuffer = nextOffsetBuffer;
-		}
-		return downsampledBuffer;
-	}
-
-	const writeString = (view, offset, string) => {
-		for (var i = 0; i < string.length; i++) {
-			view.setUint8(offset + i, string.charCodeAt(i));
-		}
-	}
-
-	const writeData = (view, offset, samples) => {
-		for (let i = 0; i < samples.length; i++, offset += 2) {
-			view.setInt16(offset, samples[i], true);
-		}
-	}
-	
-	const encodeWav = (samples) => {
-		let buffer = new ArrayBuffer(44 + samples.length * 2)
-		let view = new DataView(buffer)
-
-		let outputSampleRate = 8000
-		let numChannels = 1;
-		let bitSize = 16;
-		let blockAlign = numChannels * bitSize/8
-		let chunkSize = samples.length * 2
-		let byteRate = outputSampleRate * blockAlign
-		console.log(byteRate)
-		
-		writeString(view, 0, "RIFF");
-		view.setUint32(4, 36 + chunkSize, true);
-		writeString(view, 8, "WAVE");
-		writeString(view, 12, "fmt ");
-		view.setUint32(16, 16, true);
-		view.setUint16(20, 1, true);
-		view.setUint16(22, numChannels, true);
-		view.setUint32(24, outputSampleRate, true);
-		view.setUint32(28, byteRate, true);
-		view.setUint16(32, blockAlign, true);
-		view.setUint16(34, bitSize, true);
-		writeString(view, 36, "data");
-		view.setUint32(40, chunkSize, true);
-		writeData(view, 44, samples)
-		
-
-		return view
-	}
-
-	const saveData = () => {
-		console.log({ message: "Data Save Attempted" });
-		if (
-			mediaRecorderState === "inactive" &&
-			mediaRecorder !== undefined &&
-			recordedChunks.length > 0
-		) {
-			if (fileType === "webm") {
-				console.log({ message: "Data Valid, webm" });
-				setFile(
-					new File(recordedChunks, `RecordededFile.${fileType}`, {
-						type: `audio/${fileType}`
-					})
-				);
-			}
-			else {
-				console.log({ message: "Data Valid, wav" });
-				let mergedBuffers = mergeBuffer(recordedChunks,recLen.current)
-				// let downsampledBuffer = downsampleBuffer(mergedBuffers,16000)
-				// console.log(downsampledBuffer);
-				let encodedWav = encodeWav(mergedBuffers);
-				console.log(encodedWav)
-				setFile(
-					new File([encodedWav], `RecordededFile.${fileType}`, {
-						type: `audio/${fileType}`
-					})
-				);
-			}
-		} else {
-			console.log({ message: "Error Storing Data" });
-		}
-	};
 
 	const configureUI = () => {
 		let borderRadius = "0px";
@@ -296,36 +199,41 @@ function AudioRecorder({
 	//Recording Functions
 	const beginRecording = () => {
 		console.log({ message: "Beginning Recording" });
-		mediaRecorder.start(chunkSize);
-		setMediaRecorderState("recording");
+		setRecording(true);
+		setStarted(true);
 	};
 
 	const stopRecording = () => {
 		console.log({ message: "Stopping Recording" });
-		mediaRecorder.stop();
-		setMediaRecorderState("inactive");
+		setRecording(false);
+		if (stream === false) {
+			worker.postMessage({
+				command: "exportWavFile",
+				type: fileType
+			});
+		}
+		
 	};
 
 	const pauseRecording = () => {
 		console.log({ message: "Pausing Recording" });
-		mediaRecorder.pause();
-		setMediaRecorderState("paused");
+		setRecording(false);
 	};
 
 	const startRecording = () => {
 		console.log({ message: "Starting Recording" });
-		mediaRecorder.resume();
-		setMediaRecorderState("recording");
+		setRecording(true);
 	};
 
 	const resetRecording = () => {
 		console.log({ message: "Reseting Recording" });		
-		let clear = [];
-		setRecordedChunks(clear);
-		setMediaRecorderState("inactive");
-		setFile(undefined);
-		
+		setRecording(false);
+		setStarted(false);
+		worker.postMessage({
+			command:'clear'
+		})		
 	};
+
 	//Playback Functions
 	const startPlayback = () => {
 		audioPlayerRef.current.play();
@@ -342,37 +250,36 @@ function AudioRecorder({
 	}
 
 	useEffect(() => {
+		//Run on open
+		beginSetup();
+		configureUI();
+		//Run on close
+		return () => {
+			audioCtx.close();
+		}
+	}, []);
+
+	useEffect(() => {
 		window.addEventListener("resize", updateWidth);
 		return () => window.removeEventListener("resize", updateWidth);
 	});
 
 	useEffect(() => {
-		//Run on open
+		recordingRef.current = recording;
+	}, [recording]);
+
+	useEffect(() => {
 		getStream();
-		configureUI();
-	}, []);
-
+	}, [audioCtx])
+	
 	useEffect(() => {
-		//Run on stream update
-		createRecorder();
-	}, [stream]);
-
-	useEffect(() => {
-		//Run on creation of media recorder
-		setupRecorder();
-	}, [mediaRecorder]);
-
-	useEffect(() => {
-		//Run when file is ready
-		if (file !== undefined) {
-			console.log({ message: "Transfer to Parent Attempted" });
-			onFileReady(file);
-		}
-	}, [file, onFileReady]);
+		//Run when source is ready
+		createProcessor();
+	}, [source])
 
 	//Button handlers
 	const handleChangeMode = () => {
-		if (mediaRecorderState === "recording") {
+		if (recording === true) {
 			alert("please finish recording before changing modes");
 		} else {
 			if (mode === "playback") {
@@ -384,10 +291,10 @@ function AudioRecorder({
 	};
 
 	const handleCompactButton = () => {
-		if (mediaRecorderState === "inactive" && file === undefined) {
+		if (recording === false && started === false) {
 			beginRecording();
-		} else if (mediaRecorderState === "recording") {
-			stopRecording();
+		} else if (recording === true) {
+			stopRecording();			
 		} else {
 			resetRecording();
 		}
@@ -395,11 +302,11 @@ function AudioRecorder({
 
 	const handlePausePlay = () => {
 		if (mode === "recording") {
-			if (mediaRecorderState === "inactive") {
+			if (recording === false) {
 				beginRecording();
-			} else if (mediaRecorderState === "recording") {
+			} else if (recording === true) {
 				pauseRecording();
-			} else if (mediaRecorderState === "paused") {
+			} else if (recording === false) { // change this
 				startRecording();
 			}
 		} else {
@@ -411,8 +318,8 @@ function AudioRecorder({
 		}
 	};
 
-	const handleStopStart = () => {
-		if (mediaRecorderState !== "inactive") {
+	const handleStopReset = () => {
+		if (recording === true) {
 			stopRecording();
 		} else {
 			resetRecording();
@@ -426,15 +333,12 @@ function AudioRecorder({
 		} else if (mode === "playback") {
 			return <Mic fill={fill} />;
 		}
-		if (file !== undefined) {
-			audioPlayerRef.current.src = file;
-		}
 	};
 
 	const CompactButton = ({ fill }) => {
-		if (mediaRecorderState === "inactive" && file === undefined) {
+		if (recording === false && started === false) {
 			return <Play fill={fill} />;
-		} else if (mediaRecorderState === "recording") {
+		} else if (recording === true) {
 			return <Stop fill={fill} />;
 		} else {
 			return <Reset fill={fill} />;
@@ -443,7 +347,7 @@ function AudioRecorder({
 
 	const PausePlay = ({ fill }) => {
 		if (mode === "recording") {
-			if (mediaRecorderState === "recording") {
+			if (recording === true) {
 				return <Pause fill={fill} />;
 			} else {
 				return <Play fill={fill} />;
@@ -458,7 +362,7 @@ function AudioRecorder({
 	};
 
 	const StopReset = ({ fill }) => {
-		if (mediaRecorderState === "inactive") {
+		if (recording === false) {
 			return <Reset fill={fill} />;
 		} else {
 			return <Stop fill={fill} />;
@@ -467,7 +371,7 @@ function AudioRecorder({
 
 	//Rendering
 	if (type === "docked") {
-		if (mediaRecorder === undefined) {
+		if (setupDone === false) {
 			return (
 				<div style={style} className={"container"}>
 					<h1 className={"icon"}>
@@ -490,8 +394,8 @@ function AudioRecorder({
 						<button className={"icon"} onClick={handlePausePlay}>
 							<PausePlay fill={btnColor} />
 						</button>
-							{stream ? <AudioAnalyser width = {windowWidth} audio={stream} /> : null}
-						<button className={"icon"} onClick={handleStopStart}>
+							{source ? <AudioAnalyser width = {windowWidth} audio={streamRef.current} /> : null}
+						<button className={"icon"} onClick={handleStopReset}>
 							<StopReset fill={btnColor} />
 						</button>
 					</div>
@@ -510,7 +414,7 @@ function AudioRecorder({
 						<button className={"icon"} onClick={handlePausePlay}>
 							<PausePlay fill={btnColor} />
 						</button>
-						<button className={"icon"} onClick={handleStopStart}>
+						<button className={"icon"} onClick={handleStopReset}>
 							<StopReset fill={btnColor} />
 						</button>
 					</div>
@@ -518,7 +422,7 @@ function AudioRecorder({
 			}
 		}
 	} else if (type === "large") {
-		if (mediaRecorder === undefined) {
+		if (setupDone === false) {
 			return (
 				<div style={style} className={"container"}>
 					<h1 className={"icon"}>
@@ -542,7 +446,7 @@ function AudioRecorder({
 			}
 		}
 	} else if (type === "small") {
-		if (mediaRecorder === undefined) {
+		if (setupDone === false) {
 			return (
 				<div style={style} className={"container"}>
 					<h1 className={"icon"}>
@@ -565,7 +469,7 @@ function AudioRecorder({
 						<button className={"icon"} onClick={handlePausePlay}>
 							<PausePlay fill={btnColor} />
 						</button>
-						<button className={"icon"} onClick={handleStopStart}>
+						<button className={"icon"} onClick={handleStopReset}>
 							<StopReset fill={btnColor} />
 						</button>
 					</div>
@@ -594,7 +498,7 @@ function AudioRecorder({
 			}
 		}
 	} else if (type === "compact") {
-		if (mediaRecorder === undefined) {
+		if (setupDone === false) {
 			return (
 				<div style={style} className={"container"}>
 					<h1 className={"icon"}>
