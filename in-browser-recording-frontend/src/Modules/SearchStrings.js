@@ -1,36 +1,61 @@
 //Diff algorithm
-export const searchStrings = (mainString,compareString,adjacency) => {
+export const searchStrings = (mainString, compareString, searchWindowIndex, adjacency) => {
 	console.log({mainString,compareString})
 	//Break Strings into words
 	let mainStringWords = getWords(mainString);
 	let compareStringWords = getWords(compareString);
 	console.log({mainString: mainStringWords, compareString:compareStringWords})
+	//Allign Strings
+	alignStrings(mainStringWords,compareStringWords)
 	//Find Matches
 	let matches = [];
+	console.log(searchWindowIndex)
+	let confirmedIndex = searchWindowIndex - (adjacency * 2);
+	confirmedIndex = Math.max(confirmedIndex, 0)
+	console.log(confirmedIndex)
+	let indexOffset = 0;
+	if (confirmedIndex > compareStringWords.length) {
+		indexOffset = confirmedIndex
+	}
 	for (let word = 0; word < compareStringWords.length; word++) {
-		for (let offset = -adjacency; offset <= adjacency; offset ++) {
-			let target = word + offset
-			if (target >= 0 && target < mainStringWords.length) {
-				if (
-					compareStringWords[word].toUpperCase() ===
-					mainStringWords[target].toUpperCase()
-				) {
-					if (Math.abs(offset) !== 0) {
-						matches.push({
-							word: mainStringWords[target],
-							strength: 1 - Math.abs(offset) * (1 / (adjacency + 1)),
-							index: target
-						});
-					} else {
-						matches.push({
-							word: mainStringWords[target],
-							strength: 1,
-							index: target
-						});
+		if (word <= confirmedIndex) {
+			console.log(`previously confirmed '${mainStringWords[word]}'`);
+			matches.push({
+				word: mainStringWords[word],
+				strength: 1,
+				index: word,
+			});
+		}
+		else {
+			console.log('not confirmed')
+			for (let searchOffset = -adjacency; searchOffset <= adjacency; searchOffset++) {
+				let target = word + searchOffset + indexOffset;
+				if (target >= 0 && target < mainStringWords.length) {
+					if (
+						checkWords(
+							mainStringWords[target],
+							compareStringWords[word]
+						)
+					) {
+						if (Math.abs(searchOffset) !== 0) {
+							matches.push({
+								word: mainStringWords[target],
+								strength:
+									1 -
+									Math.abs(searchOffset) * (1 / (adjacency + 1)),
+								index: target,
+							});
+						} else {
+							matches.push({
+								word: mainStringWords[target],
+								strength: 1,
+								index: target,
+							});
+						}
 					}
 				}
 			}
-		}
+		}		
 	}
 	//Filter Matches
 	let bestMatches = []
@@ -46,6 +71,7 @@ export const searchStrings = (mainString,compareString,adjacency) => {
 			}
 		}
 	}
+	console.log(bestMatches)
 	//Build String
 	let strings = []
 	let stringCount = 0;
@@ -63,7 +89,11 @@ export const searchStrings = (mainString,compareString,adjacency) => {
 					stringCount++;
 					noMatchStringActive = false;
 				}
-				strings.push({string: bestMatches[i].word, match: true})
+				strings.push({
+					string: bestMatches[i].word, 
+					match: true, 
+					index: i
+				})
 				matchStringActive = true;				
 			}
 		}
@@ -73,7 +103,8 @@ export const searchStrings = (mainString,compareString,adjacency) => {
 				stringCount++;
 				strings.push({
 					string: mainStringWords[i],
-					match: false
+					match: false,
+					index: i
 				});
 				noMatchStringActive = true
 			}
@@ -86,7 +117,8 @@ export const searchStrings = (mainString,compareString,adjacency) => {
 				else {
 					strings.push({
 						string: mainStringWords[i],
-						match: false
+						match: false,
+						index: i
 					});
 					noMatchStringActive = true;
 				}
@@ -97,6 +129,7 @@ export const searchStrings = (mainString,compareString,adjacency) => {
 	return strings;
 }
 
+//Breaks up string into individual words
 const getWords = (string) => {
 	let lastChar = "";
 	let lastWord = 0;
@@ -114,4 +147,77 @@ const getWords = (string) => {
 		lastChar = string.charAt(i);
 	}
 	return stringWords;
+}
+
+//Allign words
+const alignStrings = (mainStringWords, compareStringWords) => {
+	if (compareStringWords < 3) {
+		
+	}
+	else {
+		let compareStringStart = compareStringWords[0]
+		compareStringStart = compareStringStart.concat(
+			" ",
+			compareStringWords[1],
+			" ",
+			compareStringWords[2]
+		);
+		let besDist = Infinity
+		let index, bestPiece
+		for(let i = 0; i < mainStringWords.length-2; i++) {
+			let mainStringPiece = mainStringWords[i];
+			mainStringPiece = mainStringPiece.concat(
+				" ",
+				mainStringWords[i + 1],
+				" ",
+				mainStringWords[i + 2]
+			);
+			let dist = levenshtienDistance(compareStringStart, mainStringPiece)
+			if (dist < besDist) {
+				besDist = dist
+				bestPiece = mainStringPiece
+				index = i
+			}
+		}
+		console.log(bestPiece, index);
+	}
+}
+
+//Compare words
+const checkWords = (mainWord, compareWord) => {
+	mainWord = mainWord.toUpperCase();
+	compareWord = compareWord.toUpperCase();
+	let levDist = levenshtienDistance(mainWord,compareWord)
+	console.log({mainWord, compareWord, Distance: levDist})
+	if (levDist < 3) {
+		return true;
+	} else {
+		return false;
+	}
+
+}
+
+//levenstien Distance algorithm
+const levenshtienDistance = (a, b) => {
+	const levArray = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null))
+
+	for (let i = 0; i <= a.length; i++) {
+		levArray[0][i] = i;
+	}
+	for (let j = 0; j <= b.length; j++) {
+		levArray[0][j] = j;
+	}
+
+	for (let j = 1; j <= b.length; j++) {
+		for (let i = 1; i <= a.length; i++) {
+			const indicator = a[i - 1] === b[i - 1] ? 0 : 1;
+			levArray[j][i] = Math.min(
+				levArray[j][i - 1] + 1,
+				levArray[j - 1][i] + 1,
+				levArray[j - 1][i - 1] + indicator
+			);
+		}
+	}
+
+	return levArray[b.length][a.length]
 }
