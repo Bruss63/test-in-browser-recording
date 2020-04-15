@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import AudioRecorder from "./AudioRecorderSrc/AudioRecorder.js";
 import "./App.css";
 import { clientDownload, S3UploadSinglePart } from "./Modules/Networking";
-import {searchStrings} from './Modules/SearchStrings'
+import { searchStrings } from "./Modules/SearchStrings";
+import scriptObj from "./script.json";
 
 function App() {
 	//File Handling Settings
@@ -10,84 +11,99 @@ function App() {
 	const s3Upload = false; //Set true to upload to s3 bucket specified below
 	const websocket = true;
 	//URL's for file handling
-	const SIGNED_URL_ENDPOINT =
-		process.env.REACT_APP_SIGNED_URL;
-	const WEBSOCKET_URL =
-		process.env.REACT_APP_WEBSOCKET_URL;
-	//Constants
-	const script =
-		"The Master of Business Administration degree originated in the United States in the early 20th century when the country industrialized and companies sought scientific approaches to management. The core courses in an MBA program cover various areas of business such as accounting, applied statistics, business communication, business ethics, business law, finance, managerial economics, management, entrepreneurship, marketing and operations in a manner most relevant to management analysis and strategy. Most programs also include elective courses and concentrations for further study in a particular area, for example accounting, finance, and marketing. MBA programs in the United States typically require completing about sixty credits, nearly twice the number of credits typically required for degrees that cover some of the same material such as the Master of Economics, Master of Finance, Master of Accountancy, Master of Science in Marketing and Master of Science in Management, The MBA is a terminal degree and a professional degree. Accreditation bodies specifically for MBA programs ensure consistency and quality of education. Business schools in many countries offer programs tailored to full-time, part-time, executive and distance learning students, many with specialized concentrations.";
-	//vars
+	const SIGNED_URL_ENDPOINT = process.env.REACT_APP_SIGNED_URL;
+	const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_URL;
+	//Refs
 	const socket = useRef(undefined);
+	const script = useRef(
+		JSON.stringify(scriptObj.script).replace(/['"]+/g, "")
+	);
 	const transcriptRef = useRef({
-		transcript:'',
+		transcript: "",
 		time: 0,
-		stability:0
+		stability: 0,
+	});
+	const previousTranscriptRef = useRef({
+		transcript: "",
+		time: 0,
+		stability: 0,
 	});
 	const confirmedSegment = useRef({
-		string: '',
-		index: 0
-	})
-	const [segments, setSegments] = useState([{string:script, match:false}]);
-	
+		string: "",
+		index: 0,
+	});
+	const isLastRef = useRef(false);
+	//States
+	const [segments, setSegments] = useState([
+		{ string: script.current, match: false },
+	]);
+	const handleSegmentsUpdate = (e) => {
+		setSegments(e);
+	};
+
 	useEffect(() => {
 		if (websocket) {
 			socket.current = new WebSocket(WEBSOCKET_URL);
-			socket.current.onmessage = e => {
-				handleMessage(e)
+			socket.current.onmessage = (e) => {
+				handleMessage(e);
 			};
-			socket.current.onopen = e => {
+			socket.current.onopen = (e) => {
 				console.log({ message: "Connection Established", e });
 			};
-			socket.current.onerror = e => {
+			socket.current.onerror = (e) => {
 				console.log({ message: "Error", e });
+			};
+			socket.current.onclose = (e) => {
+				console.log({ message: "Connection Closing", e });
 			};
 			console.log(socket.current);
 			return () => {
 				socket.current.close();
 			};
 		}
-	},[]);
+	}, []);
 
-	const handleMessage = message => {
+	const handleMessage = (message) => {
+		console.log(`Message Recieved`, { message });
 		console.time("checkTime");
-		let data = JSON.parse(message.data)
-		let timeObj = data.result_end_time
+		let data = JSON.parse(message.data);
+		let timeObj = data.result_end_time;
 		let nanos = timeObj.nanos / 1000000000;
 		let seconds = timeObj.seconds || 0;
 		let time = seconds + nanos;
-		let {valid, transcriptObj} = checkTranscriptValidity(transcriptRef.current, data, time);	
+		let { valid, transcriptObj } = checkTranscriptValidity(
+			transcriptRef.current,
+			data,
+			time
+		);
 		if (valid) {
+			transcriptObj.transcript =
+				`${previousTranscriptRef.current.transcript} ${transcriptObj.transcript}`;
 			transcriptRef.current = transcriptObj;
-			let currentSegments = searchStrings(script, data.alternatives[0].transcript, confirmedSegment.current.index, 2);
-			for (let i = 0; i < currentSegments.length; i++) {
-				if ((currentSegments[i].string.length > confirmedSegment.current.string.length) && (currentSegments[i].index > confirmedSegment.current.index) && currentSegments[i].match) {
-					confirmedSegment.current = {
-						string: currentSegments[i].string,
-						index: currentSegments[i + 1].index,
-					};
-				}				
-			}
-			console.log(confirmedSegment.current)
+			if (isLastRef.current)
+				previousTranscriptRef.current = transcriptRef.current;
+			let currentSegments = searchStrings(
+				script.current,
+				transcriptRef.current.transcript
+			);
+			console.log(confirmedSegment.current);
 			console.log({
 				currentSegments,
 			});
-			setSegments(currentSegments);
+			handleSegmentsUpdate(currentSegments);
 		}
 		console.timeEnd("checkTime");
-	} 
-	
+	};
+
 	const checkTranscriptValidity = (currentBest, data, time) => {
 		let valid = false;
-		let transcriptObj = {
-			transcript: '',
-			time: 0,
-			stability: 0
-		}
-		console.log(data)
+		isLastRef.current = false;
+		let transcriptObj;
 		if (data) {
-			let transcript,stability
+			let transcript, stability;
 			if (data.is_final === true) {
+				console.log("Is Final");
+				isLastRef.current = true;
 				transcript = data.alternatives[0].transcript;
 				stability = 1;
 			} else {
@@ -98,55 +114,71 @@ function App() {
 				transcript,
 				time,
 				stability,
-			};			
+			};
 			if (currentBest.time < time) {
 				valid = true;
 			}
 			if (currentBest.stability <= stability) {
 				valid = true;
 			}
-			if (currentBest.transcript.length < transcript.length) {
-				valid = true;
-			}
+			if (transcript) {
+				if (currentBest.transcript.length < transcript.length) {
+					valid = true;
+				}
+			} else valid = false;
 		}
-		return {valid, transcriptObj}
-	}
+		return { valid, transcriptObj };
+	};
 
-	const handleFile = file => {
+	const handleFile = (file) => {
 		if (download) {
 			clientDownload(file);
 		}
 		if (s3Upload) {
 			S3UploadSinglePart(file, SIGNED_URL_ENDPOINT);
 		}
-		if (websocket) {	
+		if (websocket) {
 			if (socket.current.readyState) {
 				socket.current.send(file);
-			}
-			else {
-				console.log('Error With Connection')
+			} else {
+				console.log("Error With Connection");
 			}
 		}
 	};
-	const displayScript = segments.map((item,index) =>{
-		let isLast = false;
-		if (index === segments.length-1) isLast = true;
-		return (
-			<span className={item.match ? "MatchText" : "UnmatchedText"}>
-				{item.string}{isLast ? null : "\u00A0"}
-			</span>
-		); 
-	})
+
+	// const displayScript = segments.map((item, index) => {
+	// 	let isLast = false;
+	// 	if (index === segments.length - 1) isLast = true;
+	// 	return (
+	// 		<span
+	// 			key={index}
+	// 			className={item.match ? "MatchText" : "UnmatchedText"}>
+	// 			{item.string}
+	// 			{isLast ? null : "\u00A0"}
+	// 		</span>
+	// 	);
+	// });
+
+	const handleClick = (e) => {
+		console.log({
+			segments,
+			transcriptRef,
+			isLast: isLastRef.current,
+			socket: socket.current,
+		});
+	};
+
 	return (
 		<div className='App'>
 			<div className={"ScriptContainer"}>
-				<p>{displayScript}</p>
+				{/* <p className={"SpanStyle"}>{displayScript}</p> */}
 			</div>
 			<AudioRecorder
 				channelNumber={1}
 				stream={true}
 				onFileReady={handleFile}
 			/>
+			<button onClick={handleClick}>check</button>
 		</div>
 	);
 }
