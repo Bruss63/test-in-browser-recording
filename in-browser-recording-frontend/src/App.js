@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import AudioRecorder from "./AudioRecorderSrc/AudioRecorder.js";
 import "./App.css";
 import { clientDownload, S3UploadSinglePart } from "./Modules/Networking";
-import { searchStrings } from "./Modules/SearchStrings";
+import { searchStrings, createSegments } from "./Modules/SearchStrings";
 import scriptObj from "./script.json";
 
 function App() {
@@ -18,25 +18,14 @@ function App() {
 	const script = useRef(
 		JSON.stringify(scriptObj.script).replace(/['"]+/g, "")
 	);
-	const transcriptRef = useRef({
-		transcript: "",
-		time: 0,
-		stability: 0,
-	});
-	const previousTranscriptRef = useRef({
-		transcript: "",
-		time: 0,
-		stability: 0,
-	});
-	const confirmedSegment = useRef({
-		string: "",
-		index: 0,
-	});
-	const isLastRef = useRef(false);
+	const bestReadTo = useRef(0);
+	const margin = useRef(3);
 	//States
-	const [segments, setSegments] = useState([
-		{ string: script.current, match: false },
-	]);
+	const [segments, setSegments] = useState({
+		confirmedSegment: "",
+		unconfirmedSegment: "",
+		unspokenSegment: script.current,
+	});
 	const handleSegmentsUpdate = (e) => {
 		setSegments(e);
 	};
@@ -65,69 +54,26 @@ function App() {
 
 	const handleMessage = (message) => {
 		console.log(`Message Recieved`, { message });
-		console.time("checkTime");
 		let data = JSON.parse(message.data);
-		let timeObj = data.result_end_time;
-		let nanos = timeObj.nanos / 1000000000;
-		let seconds = timeObj.seconds || 0;
-		let time = seconds + nanos;
-		let { valid, transcriptObj } = checkTranscriptValidity(
-			transcriptRef.current,
-			data,
-			time
-		);
-		if (valid) {
-			transcriptObj.transcript =
-				`${previousTranscriptRef.current.transcript} ${transcriptObj.transcript}`;
-			transcriptRef.current = transcriptObj;
-			if (isLastRef.current)
-				previousTranscriptRef.current = transcriptRef.current;
-			let currentSegments = searchStrings(
+		if (data.alternatives[0].transcript) {
+			let readTo = searchStrings(
 				script.current,
-				transcriptRef.current.transcript
+				data.alternatives[0].transcript,
+				margin.current
 			);
-			console.log(confirmedSegment.current);
-			console.log({
-				currentSegments,
-			});
-			handleSegmentsUpdate(currentSegments);
-		}
-		console.timeEnd("checkTime");
-	};
-
-	const checkTranscriptValidity = (currentBest, data, time) => {
-		let valid = false;
-		isLastRef.current = false;
-		let transcriptObj;
-		if (data) {
-			let transcript, stability;
-			if (data.is_final === true) {
-				console.log("Is Final");
-				isLastRef.current = true;
-				transcript = data.alternatives[0].transcript;
-				stability = 1;
+			if (
+				bestReadTo.current < readTo &&
+				readTo < bestReadTo.current + Math.ceil(margin.current / 2)
+			) {
+				bestReadTo.current = readTo;
+				let segments = createSegments(script.current, readTo);
+				console.log(segments);
+				handleSegmentsUpdate(segments);
+				margin.current = 3;
 			} else {
-				transcript = data.alternatives[0].transcript;
-				stability = data.stability;
+				margin.current = margin.current + 1;
 			}
-			transcriptObj = {
-				transcript,
-				time,
-				stability,
-			};
-			if (currentBest.time < time) {
-				valid = true;
-			}
-			if (currentBest.stability <= stability) {
-				valid = true;
-			}
-			if (transcript) {
-				if (currentBest.transcript.length < transcript.length) {
-					valid = true;
-				}
-			} else valid = false;
 		}
-		return { valid, transcriptObj };
 	};
 
 	const handleFile = (file) => {
@@ -146,39 +92,32 @@ function App() {
 		}
 	};
 
-	// const displayScript = segments.map((item, index) => {
-	// 	let isLast = false;
-	// 	if (index === segments.length - 1) isLast = true;
-	// 	return (
-	// 		<span
-	// 			key={index}
-	// 			className={item.match ? "MatchText" : "UnmatchedText"}>
-	// 			{item.string}
-	// 			{isLast ? null : "\u00A0"}
-	// 		</span>
-	// 	);
-	// });
-
-	const handleClick = (e) => {
-		console.log({
-			segments,
-			transcriptRef,
-			isLast: isLastRef.current,
-			socket: socket.current,
-		});
-	};
-
 	return (
 		<div className='App'>
 			<div className={"ScriptContainer"}>
-				{/* <p className={"SpanStyle"}>{displayScript}</p> */}
+				<p className={"SpanStyle"}>
+					<span className={"OtherWords"}>
+						{segments.confirmedSegment}
+					</span>
+					<span className={"OtherWords"}>
+						{segments.unconfirmedSegment ? "\u00A0" : null}
+					</span>
+					<span className={"ExpectedWords"}>
+						{segments.unconfirmedSegment}
+					</span>
+					<span className={"OtherWords"}>
+						{segments.unconfirmedSegment ? "\u00A0" : null}
+					</span>
+					<span className={"OtherWords"}>
+						{segments.unspokenSegment}
+					</span>
+				</p>
 			</div>
 			<AudioRecorder
 				channelNumber={1}
 				stream={true}
 				onFileReady={handleFile}
 			/>
-			<button onClick={handleClick}>check</button>
 		</div>
 	);
 }

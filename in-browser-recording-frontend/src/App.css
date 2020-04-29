@@ -12,7 +12,6 @@
 
 .ScriptContainer {  
   display: inline-flex;
-  align-items: center;
   margin: 10px;
   border-radius: 15px;
   padding: 10px;
@@ -23,14 +22,18 @@
 
 .SpanStyle {
   margin: 0px;
+  padding: 10px;
+  text-align: center;
+  word-wrap: break-word;
+  display: inline;
 }
 
-.MatchText {
-  color: rgb(99, 177, 36);
+.ExpectedWords {
+  color: rgb(163, 163, 163);
   font-size: 14pt;
 }
 
-.UnmatchedText {
+.OtherWords {
   color: rgb(0, 0, 0);
   font-size: 14pt;
 }
