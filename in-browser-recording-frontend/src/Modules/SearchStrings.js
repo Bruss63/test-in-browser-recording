@@ -47,14 +47,26 @@ export const searchStrings = (mainString, compareString, compliance) => {
 	return readTo;
 };
 
-export const createSegments = (script, readTo) => {
-	let words = getWords(script);
+export const createSegments = (script, readTo, pWidth) => {
+	let lineLength = Math.floor(pWidth / 13);
+	console.log(lineLength)
+	currentLine = 0;
+	let words = getWords(script);	
 	let confirmedArray = words.slice(0, readTo);
 	let unconfirmedArray = words.slice(readTo, readTo + 5);
 	let unspokenArray = words.slice(readTo + 5, words.length);
-	let confirmedSegment = reconstructSentence(confirmedArray);
-	let unconfirmedSegment = reconstructSentence(unconfirmedArray);
-	let unspokenSegment = reconstructSentence(unspokenArray);
+	let confirmedSegment = reconstructSentence(
+		confirmedArray,
+		lineLength
+	);
+	let unconfirmedSegment = reconstructSentence(
+		unconfirmedArray,
+		lineLength
+	);
+	let unspokenSegment = reconstructSentence(
+		unspokenArray,
+		lineLength
+	);
 	return {
 		confirmedSegment,
 		unconfirmedSegment,
@@ -83,10 +95,17 @@ const getWords = (string) => {
 };
 
 // Create String from array of words
-const reconstructSentence = (wordArray) => {
-	let wordString = wordArray[0];
-	for (let i = 1; i < wordArray.length; i++) {
-		wordString = wordString.concat(` ${wordArray[i]}`);
+let currentLine = 0;
+const reconstructSentence = (wordArray, lineLength) => {
+	let wordString = "";
+	for (let i = 0; i < wordArray.length; i++) {
+		if (currentLine >= lineLength) {
+			wordString = wordString.concat(` ${wordArray[i]}\n`);
+			currentLine = 0;
+		} else {
+			wordString = wordString.concat(` ${wordArray[i]}`);
+			currentLine = currentLine + wordArray[i].length;
+		}
 	}
 	return wordString;
 };
@@ -99,6 +118,7 @@ const filterWords = (wordArray) => {
 	}
 	return wordArray;
 };
+
 //Compare words
 const checkWords = (mainWord, compareWord, threshold) => {
 	mainWord = mainWord.toUpperCase();

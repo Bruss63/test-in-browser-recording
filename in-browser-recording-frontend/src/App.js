@@ -9,7 +9,7 @@ function App() {
 	//File Handling Settings
 	const download = false; //Set true to download directly to local machine --Testing Only--
 	const s3Upload = false; //Set true to upload to s3 bucket specified below
-	const websocket = true;
+	const websocket = true; // Turn on and off Websocket
 	//URL's for file handling
 	const SIGNED_URL_ENDPOINT = process.env.REACT_APP_SIGNED_URL;
 	const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_URL;
@@ -20,6 +20,7 @@ function App() {
 	);
 	const bestReadTo = useRef(0);
 	const margin = useRef(3);
+	const pWidth = useRef(600);
 	//States
 	const [segments, setSegments] = useState({
 		confirmedSegment: "",
@@ -31,6 +32,9 @@ function App() {
 	};
 
 	useEffect(() => {
+		handleResize()
+		let segments = createSegments(script.current, 0, pWidth.current);
+		handleSegmentsUpdate(segments);
 		if (websocket) {
 			socket.current = new WebSocket(WEBSOCKET_URL);
 			socket.current.onmessage = (e) => {
@@ -50,10 +54,22 @@ function App() {
 				socket.current.close();
 			};
 		}
+
 	}, []);
 
+	useEffect(() => {
+		window.addEventListener('resize',handleResize);
+		return _ => {
+			window.removeEventListener('resize',handleResize)
+		}
+	})
+
+	const handleResize = () => {
+		pWidth.current = document.getElementById("pContainer").getBoundingClientRect().width
+	};
+
 	const handleMessage = (message) => {
-		console.log(`Message Recieved`, { message });
+		// console.log(`Message Recieved`, { message });
 		let data = JSON.parse(message.data);
 		if (data.alternatives[0].transcript) {
 			let readTo = searchStrings(
@@ -66,8 +82,7 @@ function App() {
 				readTo < bestReadTo.current + Math.ceil(margin.current / 2)
 			) {
 				bestReadTo.current = readTo;
-				let segments = createSegments(script.current, readTo);
-				console.log(segments);
+				let segments = createSegments(script.current, readTo, pWidth.current);
 				handleSegmentsUpdate(segments);
 				margin.current = 3;
 			} else {
@@ -95,20 +110,14 @@ function App() {
 	return (
 		<div className='App'>
 			<div className={"ScriptContainer"}>
-				<p className={"SpanStyle"}>
-					<span className={"OtherWords"}>
+				<p id={'pContainer'} className={"SpanStyle"}>
+					<span className={"RemainingWords"}>
 						{segments.confirmedSegment}
-					</span>
-					<span className={"OtherWords"}>
-						{segments.unconfirmedSegment ? "\u00A0" : null}
 					</span>
 					<span className={"ExpectedWords"}>
 						{segments.unconfirmedSegment}
 					</span>
-					<span className={"OtherWords"}>
-						{segments.unconfirmedSegment ? "\u00A0" : null}
-					</span>
-					<span className={"OtherWords"}>
+					<span className={"RemainingWords"}>
 						{segments.unspokenSegment}
 					</span>
 				</p>
