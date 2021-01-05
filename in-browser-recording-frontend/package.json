@@ -8,7 +8,7 @@
     "@testing-library/user-event": "^7.1.2",
     "audiobuffer-to-wav": "^1.0.0",
     "aws-sdk": "^2.619.0",
-    "axios": "^0.19.2",
+    "axios": "^0.21.1",
     "dotenv": "^8.2.0",
     "node-wav": "0.0.2",
     "react": "^16.12.0",
